@@ -145,6 +145,22 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
   .summary-cards{break-inside:avoid}
 }
 .print-only{display:none}
+/* Per-line GP slider */
+.line-slider-row{display:none;background:#fafaf9;border-top:1px solid #f0f0f0}
+.line-slider-row.show{display:table-row}
+.line-slider-cell{padding:6px 8px 8px;vertical-align:middle}
+.line-slider-inner{display:flex;align-items:center;gap:10px}
+.line-slider-inner input[type="range"]{flex:1;accent-color:#1a1a1a;height:4px;margin:0}
+.line-slider-inner .ls-gp{font-size:11px;font-weight:500;min-width:42px;text-align:right}
+.line-slider-inner .ls-sell{font-size:11px;color:#888;min-width:70px}
+.line-slider-inner .ls-label{font-size:11px;color:#aaa;white-space:nowrap}
+/* Quote totals */
+.quote-totals{background:#fff;border:1px solid #e8e8e8;border-radius:12px;padding:1rem 1.25rem;margin-top:0.75rem}
+.quote-totals-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;font-size:14px;color:#555}
+.quote-totals-row:not(:last-child){border-bottom:1px solid #f0f0f0}
+.quote-totals-row.total{font-size:16px;font-weight:600;color:#1a1a1a;padding-top:10px;margin-top:4px}
+.quote-totals-row span:last-child{font-weight:500;color:#1a1a1a}
+.quote-totals-row.total span:last-child{font-size:18px;color:#1a1a1a}
 
 /* Product search dropdown */
 .sku-wrap{position:static;}
@@ -287,8 +303,16 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
     <div class="card" id="sum-card3"><div class="clabel">Overall GP%</div><div class="cval" id="sum-gp-pct">0.0%</div></div>
   </div>
 
+  <!-- Quote totals — subtotal, GST, total inc GST -->
+  <div class="quote-totals" id="quote-totals">
+    <div class="quote-totals-row"><span>Subtotal (ex GST)</span><span id="total-ex-gst">$0.00</span></div>
+    <div class="quote-totals-row"><span>GST (10%)</span><span id="total-gst">$0.00</span></div>
+    <div class="quote-totals-row" id="freight-total-row" style="display:none"><span>Freight (inc GST)</span><span id="total-freight">$0.00</span></div>
+    <div class="quote-totals-row total"><span>Total (inc GST)</span><span id="total-inc-gst">$0.00</span></div>
+  </div>
+
   <div class="freight-row no-print">
-    <span class="fr-label">Include freight in GP calculation? <span id="freight-impact" class="freight-impact"></span></span>
+    <span class="fr-label">Freight absorbed by QIS (no charge to customer — include in GP calc) <span id="freight-impact" class="freight-impact"></span></span>
     <label class="toggle-outer" for="freight-toggle">
       <span class="tog-label" id="tog-label">Off</span>
       <span class="toggle">
@@ -318,7 +342,7 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
   <div class="row3" style="margin-bottom:12px">
     <div class="field"><label for="quote-date">Quote date</label><input type="date" id="quote-date"></div>
     <div class="field">
-      <label for="freight">Freight to customer</label>
+      <label for="freight">Freight to customer (inc GST)</label>
       <div class="input-prefix"><span>$</span><input type="number" id="freight" min="0" step="0.01" value="0" oninput="updateSummary();if(document.getElementById('counter-fields').classList.contains('show'))calcCounterGP();"></div>
     </div>
     <div class="field">
@@ -564,6 +588,50 @@ function renderLines(){
     });
     remTd.appendChild(remBtn);tr.appendChild(remTd);
     tbody.appendChild(tr);
+
+    // Per-line GP slider row — only shown when cost > 0
+    const sliderTr=document.createElement('tr');
+    sliderTr.className='line-slider-row'+(item.cost>0?' show':'');
+    sliderTr.dataset.sliderRow=item.id;
+    const sliderTd=document.createElement('td');
+    sliderTd.className='line-slider-cell';
+    sliderTd.colSpan=9;
+    const inner=document.createElement('div');
+    inner.className='line-slider-inner';
+    const lsLabel=document.createElement('span');
+    lsLabel.className='ls-label';lsLabel.textContent='GP target:';
+    const lsSlider=document.createElement('input');
+    lsSlider.type='range';lsSlider.min=0;lsSlider.max=90;lsSlider.step=1;
+    lsSlider.dataset.sliderFor=item.id;
+    // Set slider to current GP
+    const currentGP=item.sell>0?Math.max(0,Math.min(90,Math.round(calcGP(item.cost,item.sell)))):0;
+    lsSlider.value=currentGP;
+    const lsGp=document.createElement('span');
+    lsGp.className='ls-gp';lsGp.dataset.gpLabel=item.id;
+    lsGp.style.cssText=gpStyle(currentGP);
+    lsGp.textContent=item.sell>0?currentGP+'%':'—';
+    const lsSell=document.createElement('span');
+    lsSell.className='ls-sell';lsSell.dataset.sellLabel=item.id;
+    lsSell.textContent=item.sell>0?'Sell: $'+item.sell.toFixed(2):'';
+    lsSlider.addEventListener('input',function(){
+      const tgt=parseFloat(this.value);
+      const it=lineItems.find(l=>l.id===item.id);
+      if(!it||!it.cost)return;
+      it.sell=parseFloat((it.cost/(1-tgt/100)).toFixed(2));
+      lsGp.textContent=tgt+'%';
+      lsGp.style.cssText=gpStyle(tgt);
+      lsSell.textContent='Sell: $'+it.sell.toFixed(2);
+      updateRowCells(it.id);
+      updateSummary();
+      if(document.getElementById('counter-fields').classList.contains('show'))calcCounterGP();
+    });
+    inner.appendChild(lsLabel);
+    inner.appendChild(lsSlider);
+    inner.appendChild(lsGp);
+    inner.appendChild(lsSell);
+    sliderTd.appendChild(inner);
+    sliderTr.appendChild(sliderTd);
+    tbody.appendChild(sliderTr);
   });
 }
 
@@ -644,6 +712,18 @@ function updateRowCells(id){
   if(gpCell){gpCell.textContent=item.sell>0?gp.toFixed(1)+'%':'—';gpCell.style.cssText=gpStyle(gp);}
   if(tsCell){tsCell.textContent='$'+tS.toFixed(2);}
   if(tgCell){tgCell.textContent='$'+tG.toFixed(2);tgCell.style.cssText=gpStyle(gp);}
+  // Sync per-line slider
+  const lsSlider=document.querySelector(`input[data-slider-for="${id}"]`);
+  const lsGp=document.querySelector(`[data-gp-label="${id}"]`);
+  const lsSell=document.querySelector(`[data-sell-label="${id}"]`);
+  const sliderRow=document.querySelector(`[data-slider-row="${id}"]`);
+  if(sliderRow){sliderRow.className='line-slider-row'+(item.cost>0?' show':'');}
+  if(lsSlider&&document.activeElement!==lsSlider){
+    const sv=item.sell>0?Math.min(90,Math.max(0,Math.round(gp))):0;
+    lsSlider.value=sv;
+  }
+  if(lsGp){lsGp.textContent=item.sell>0?Math.round(gp)+'%':'—';lsGp.style.cssText=gpStyle(gp);}
+  if(lsSell){lsSell.textContent=item.sell>0?'Sell: $'+item.sell.toFixed(2):'';}
 }
 
 // ─── Keyboard navigation ──────────────────────────────────────────────────────
@@ -722,6 +802,27 @@ function updateSummary(){
     impact.textContent='('+diff+'% impact on GP)';
     impact.className='freight-impact show';
   } else impact.className='freight-impact';
+
+  // Update quote totals
+  // tS is sell price ex GST
+  // freight is inc GST entered by rep
+  // If toggle OFF: freight charged to customer, show in total
+  // If toggle ON: freight absorbed by QIS, hide from customer total
+  const gstAmount=tS*0.1;
+  const subtotalIncGst=tS+gstAmount;
+  const freightRow=document.getElementById('freight-total-row');
+  const freightTotalEl=document.getElementById('total-freight');
+  let grandTotal=subtotalIncGst;
+  if(!freightOn&&freight>0){
+    freightRow.style.display='flex';
+    freightTotalEl.textContent='$'+freight.toFixed(2);
+    grandTotal+=freight;
+  } else {
+    freightRow.style.display='none';
+  }
+  document.getElementById('total-ex-gst').textContent='$'+tS.toFixed(2);
+  document.getElementById('total-gst').textContent='$'+gstAmount.toFixed(2);
+  document.getElementById('total-inc-gst').textContent='$'+grandTotal.toFixed(2);
 }
 
 // ─── Slider ───────────────────────────────────────────────────────────────────

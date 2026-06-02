@@ -459,7 +459,8 @@ const GP_AMBER=65;  // below this: below target; at or above: on target
 // ─── Database config (Supabase) ───────────────────────────────────────────────
 const SURL='https://nwrisgtscrvdkpinokd.supabase.co';
 const SKEY='sb_publishable_7nEQN9-crgIR3y2YFZgg1g_Cmfg_IAd';
-const H={'Content-Type':'application/json','apikey':SKEY,'Authorization':'Bearer '+SKEY};
+// Publishable key goes in apikey header only — not Authorization (it's not a JWT)
+const H={'Content-Type':'application/json','apikey':SKEY};
 
 let lineItems=[];
 let followups=[];

@@ -456,9 +456,9 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
 const GP_RED=30;    // below this: needs approval
 const GP_AMBER=65;  // below this: below target; at or above: on target
 
-// ─── Database config (Supabase — to be configured) ───────────────────────────
-const SURL='';  // Supabase project URL goes here
-const SKEY='';  // Supabase anon key goes here
+// ─── Database config (Supabase) ───────────────────────────────────────────────
+const SURL='https://nwrisgtscrvdkpinokd.supabase.co';
+const SKEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im53cmlzZ3RzY3JydmRrcGlub2tkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzNzQ5MTcsImV4cCI6MjA5NTk1MDkxN30.i7bcAu27dT_hRWNQ_fXo05vYio21lP582bXqlI2mHKo';
 const H={'Content-Type':'application/json','apikey':SKEY,'Authorization':'Bearer '+SKEY};
 
 let lineItems=[];

@@ -161,6 +161,7 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
 .pd-onorder{color:#0C447C;}
 .pd-nostock{color:#791F1F;font-weight:500;}
 .pd-empty{padding:10px 12px;font-size:12px;color:#888;text-align:center;}
+.pd-sell{color:#0C447C;font-weight:500;}
 </style>
 </head>
 <body>
@@ -881,8 +882,13 @@ function showProductDropdown(inp,itemId,query){
     const descEl=document.createElement('div');descEl.className='pd-desc';descEl.textContent=p.desc;
     const meta=document.createElement('div');meta.className='pd-meta';
     const costEl=document.createElement('span');costEl.className='pd-cost';
-    costEl.textContent='Cost: $'+p.cost.toFixed(4);
+    costEl.textContent='Cost: $'+(p.cost?p.cost.toFixed(4):'—');
     meta.appendChild(costEl);
+    if(p.sell){
+      const sellEl=document.createElement('span');sellEl.className='pd-sell';
+      sellEl.textContent='Sell: $'+p.sell.toFixed(4);
+      meta.appendChild(sellEl);
+    }
     div.appendChild(skuEl);div.appendChild(descEl);div.appendChild(meta);
     div.addEventListener('mousedown',e=>{
       e.preventDefault();
@@ -940,23 +946,26 @@ function selectProduct(p,itemId){
   if(!item)return;
   item.sku=p.sku;
   item.desc=p.desc;
-  item.cost=p.cost;
+  item.cost=p.cost||0;
+  item.sell=p.sell||0;
   // Update SKU input
   const skuInp=document.querySelector(`#line-items-body input[data-id="${itemId}"][data-field="sku"]`);
   if(skuInp)skuInp.value=p.sku;
   // Update desc input
   const descInp=document.querySelector(`#line-items-body input[data-id="${itemId}"][data-field="desc"]`);
   if(descInp)descInp.value=p.desc;
-  // Update cost input and row cells
+  // Update cost input
   const costInp=document.querySelector(`#line-items-body input[data-id="${itemId}"][data-field="cost"]`);
-  if(costInp)costInp.value=p.cost;
+  if(costInp)costInp.value=p.cost||'';
+  // Update sell input
+  const sellInp=document.querySelector(`#line-items-body input[data-id="${itemId}"][data-field="sell"]`);
+  if(sellInp)sellInp.value=p.sell||'';
   updateRowCells(itemId);
   updateSummary();
   // Move focus to qty
   const row=skuInp?skuInp.closest('tr'):null;
   if(row){
     const inputs=row.querySelectorAll('input');
-    // qty is index 2
     if(inputs[2])inputs[2].focus();
   }
 }

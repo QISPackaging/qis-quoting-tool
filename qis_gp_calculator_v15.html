@@ -870,20 +870,6 @@ function showProductDropdown(inp,itemId,query){
     const costEl=document.createElement('span');costEl.className='pd-cost';
     costEl.textContent='Cost: $'+p.cost.toFixed(4);
     meta.appendChild(costEl);
-    if(p.qty>0){
-      const qtyEl=document.createElement('span');qtyEl.className='pd-qty';
-      qtyEl.textContent='In stock: '+p.qty;
-      meta.appendChild(qtyEl);
-    } else {
-      const nsEl=document.createElement('span');nsEl.className='pd-nostock';
-      nsEl.textContent='No stock';
-      meta.appendChild(nsEl);
-      if(p.on_order>0){
-        const ooEl=document.createElement('span');ooEl.className='pd-onorder';
-        ooEl.textContent='On order: '+p.on_order;
-        meta.appendChild(ooEl);
-      }
-    }
     div.appendChild(skuEl);div.appendChild(descEl);div.appendChild(meta);
     div.addEventListener('mousedown',e=>{
       e.preventDefault();

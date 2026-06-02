@@ -456,9 +456,12 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
 const GP_RED=30;    // below this: needs approval
 const GP_AMBER=65;  // below this: below target; at or above: on target
 
-const SURL='https://ynihwukjtrkphavswts.supabase.co';
-const SKEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InluaWh3dWtqanRya3BoYXZzd3RzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5MTQ1NjUsImV4cCI6MjA5NTQ5MDU2NX0.8fdAnFiqVF8hbf0Jl9m274xq9cwN2RtlPBHwv4frD6M';
-const H={'Content-Type':'application/json','apikey':SKEY,'Authorization':'Bearer '+SKEY};
+// GitHub data store
+const GH_TOKEN='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';
+const GH_REPO='QISPackaging/qis-quoting-tool';
+const GH_FILE='quotes.json';
+const GH_API='https://api.github.com/repos/'+GH_REPO+'/contents/'+GH_FILE;
+const GH_H={'Accept':'application/vnd.github.v3+json','Authorization':'token '+GH_TOKEN,'Content-Type':'application/json'};
 
 let lineItems=[];
 let followups=[];
@@ -1298,16 +1301,35 @@ async function saveQuote(){
   };
 
   try{
-    const res=await fetch(SURL+'/rest/v1/quotes',
-      {method:'POST',headers:Object.assign({},H,{'Prefer':'return=minimal'}),
-       body:JSON.stringify(payload)});
-    if(res.ok){
+    // Read current quotes file from GitHub
+    let sha=null;
+    let quotes=[];
+    const getRes=await fetch(GH_API,{headers:GH_H});
+    if(getRes.ok){
+      const fileData=await getRes.json();
+      sha=fileData.sha;
+      try{quotes=JSON.parse(atob(fileData.content.replace(/
+/g,'')));}catch(e){quotes=[];}
+    } else if(getRes.status!==404){
+      showToast('Error reading quotes file — '+getRes.status,'error');
+      btn.textContent='Save quote';btn.disabled=false;return;
+    }
+    // Add new quote with ID and timestamp
+    payload.id=Date.now();
+    payload.created_at=new Date().toISOString();
+    quotes.push(payload);
+    // Write back to GitHub
+    const body={message:'Save quote — '+( payload.quote_number||payload.business_name||'unnamed'),
+      content:btoa(unescape(encodeURIComponent(JSON.stringify(quotes,null,2))))};
+    if(sha)body.sha=sha;
+    const putRes=await fetch(GH_API,{method:'PUT',headers:GH_H,body:JSON.stringify(body)});
+    if(putRes.ok){
       showToast('Quote saved successfully','success');
       document.getElementById('line-warn').className='warn-banner';
     } else {
-      const txt=await res.text();
-      showToast('Error saving — '+res.status,'error');
-      console.error(res.status,txt);
+      const txt=await putRes.text();
+      showToast('Error saving — '+putRes.status,'error');
+      console.error(putRes.status,txt);
     }
   } catch(e){showToast('Connection error: '+e.message,'error');}
   btn.textContent='Save quote';btn.disabled=false;
@@ -1327,12 +1349,16 @@ async function loadQuotes(){
   const fc=document.getElementById('filter-customer').value.toLowerCase().trim();
   const fr=document.getElementById('filter-rep').value.toLowerCase();
   const fg=document.getElementById('filter-gp').value;
-  let url=SURL+'/rest/v1/quotes?order=created_at.desc&limit=200';
-  if(fs)url+='&status=eq.'+encodeURIComponent(fs);
   try{
-    const res=await fetch(url,{headers:H});
+    const res=await fetch(GH_API,{headers:GH_H});
+    if(res.status===404){container.innerHTML='<div class="empty-state">No quotes saved yet</div>';return;}
     if(!res.ok){container.innerHTML='<div class="empty-state">Error loading quotes ('+res.status+')</div>';return;}
-    let data=await res.json();
+    const fileData=await res.json();
+    let data=[];
+    try{data=JSON.parse(atob(fileData.content.replace(/
+/g,'')));}catch(e){data=[];}
+    // Sort newest first
+    data.sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
     _cachedQuotes=data;
     if(fc)data=data.filter(q=>
       (q.business_name||'').toLowerCase().includes(fc)||
@@ -1457,16 +1483,27 @@ async function quickStatusUpdate(id,currentStatus,businessName){
 
 async function patchQuoteStatus(id,newStatus){
   try{
-    const res=await fetch(SURL+'/rest/v1/quotes?id=eq.'+id,
-      {method:'PATCH',headers:Object.assign({},H,{'Prefer':'return=minimal'}),
-       body:JSON.stringify({status:newStatus})});
-    if(res.ok){
+    const getRes=await fetch(GH_API,{headers:GH_H});
+    if(!getRes.ok){showToast('Error reading quotes — '+getRes.status,'error');return;}
+    const fileData=await getRes.json();
+    let quotes=[];
+    try{quotes=JSON.parse(atob(fileData.content.replace(/
+/g,'')));}catch(e){}
+    const idx=quotes.findIndex(q=>q.id===id);
+    if(idx===-1){showToast('Quote not found','error');return;}
+    quotes[idx].status=newStatus;
+    quotes[idx].updated_at=new Date().toISOString();
+    const body={message:'Update status — '+newStatus,
+      content:btoa(unescape(encodeURIComponent(JSON.stringify(quotes,null,2)))),
+      sha:fileData.sha};
+    const putRes=await fetch(GH_API,{method:'PUT',headers:GH_H,body:JSON.stringify(body)});
+    if(putRes.ok){
       showToast('Status updated to '+newStatus,'success');
       loadQuotes();
     } else {
-      const txt=await res.text();
-      showToast('Error updating status — '+res.status,'error');
-      console.error(res.status,txt);
+      const txt=await putRes.text();
+      showToast('Error updating status — '+putRes.status,'error');
+      console.error(putRes.status,txt);
     }
   } catch(e){showToast('Connection error: '+e.message,'error');}
 }

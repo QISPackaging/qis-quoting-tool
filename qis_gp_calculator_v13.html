@@ -145,6 +145,22 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
   .summary-cards{break-inside:avoid}
 }
 .print-only{display:none}
+
+/* Product search dropdown */
+.sku-wrap{position:relative;}
+.product-dropdown{display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #e0e0e0;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.1);z-index:200;max-height:260px;overflow-y:auto;min-width:420px;}
+.product-dropdown.show{display:block;}
+.pd-item{padding:8px 12px;cursor:pointer;border-bottom:1px solid #f0f0f0;font-size:12px;}
+.pd-item:last-child{border-bottom:none;}
+.pd-item:hover,.pd-item.active{background:#f5f5f3;}
+.pd-sku{font-weight:500;color:#1a1a1a;font-size:12px;}
+.pd-desc{color:#666;font-size:11px;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.pd-meta{display:flex;gap:10px;margin-top:2px;font-size:10px;}
+.pd-cost{color:#27500A;font-weight:500;}
+.pd-qty{color:#888;}
+.pd-onorder{color:#0C447C;}
+.pd-nostock{color:#791F1F;font-weight:500;}
+.pd-empty{padding:10px 12px;font-size:12px;color:#888;text-align:center;}
 </style>
 </head>
 <body>
@@ -287,17 +303,12 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
       <strong id="slider-display">0%</strong>
     </div>
     <input type="range" id="gp-slider" min="0" max="90" step="1" value="0" aria-label="Target GP percent">
-    <div class="slider-ticks">
-      <span style="left:0%">0%</span>
-      <span style="left:33.3%">30%</span>
-      <span style="left:72.2%">65%</span>
-      <span style="left:100%">90%</span>
+    <div class="slider-ticks" id="slider-ticks">
+      <!-- tick positions set by JS using GP_RED and GP_AMBER constants -->
     </div>
   </div>
-  <div class="legend no-print" style="margin-top:1rem">
-    <div class="legend-item"><div class="dot red"></div>Under 30% (Jack's approval)</div>
-    <div class="legend-item"><div class="dot amber"></div>30–64% (below target)</div>
-    <div class="legend-item"><div class="dot green"></div>65%+ (on target)</div>
+  <div class="legend no-print" id="gp-legend" style="margin-top:1rem">
+    <!-- legend text set by JS using GP_RED and GP_AMBER constants -->
   </div>
 </div>
 
@@ -557,6 +568,32 @@ function renderLines(){
 
 function makeTextCell(item,rowIdx,field,placeholder){
   const td=document.createElement('td');
+  if(field==='sku'){
+    // SKU cell gets a product search dropdown
+    const wrap=document.createElement('div');wrap.className='sku-wrap';
+    const inp=document.createElement('input');
+    inp.type='text';inp.value=item[field];inp.placeholder=placeholder;
+    inp.dataset.id=item.id;inp.dataset.field=field;inp.autocomplete='off';
+    inp.addEventListener('input',e=>{
+      const it=lineItems.find(l=>l.id===item.id);
+      if(it)it[field]=e.target.value;
+      updateSummary();
+      showProductDropdown(inp,item.id,e.target.value);
+    });
+    inp.addEventListener('keydown',e=>{
+      if(handleDropdownKeydown(e,inp,item.id))return;
+      lineKeyNav(e,rowIdx,0);
+    });
+    inp.addEventListener('blur',e=>{
+      // Delay hide so click on dropdown item registers first
+      setTimeout(()=>hideProductDropdown(inp),150);
+    });
+    const dd=document.createElement('div');dd.className='product-dropdown';
+    dd.dataset.ddFor=item.id;
+    wrap.appendChild(inp);wrap.appendChild(dd);
+    td.appendChild(wrap);
+    return td;
+  }
   const inp=document.createElement('input');
   inp.type='text';inp.value=item[field];inp.placeholder=placeholder;
   inp.dataset.id=item.id;inp.dataset.field=field;
@@ -692,6 +729,9 @@ const sliderEl=document.getElementById('gp-slider');
 sliderEl.addEventListener('pointerdown',()=>{sliderDragging=true;});
 sliderEl.addEventListener('pointerup',()=>{sliderDragging=false;});
 sliderEl.addEventListener('pointercancel',()=>{sliderDragging=false;});
+// FIX: also release on window pointerup so dragging flag never gets stuck
+// if the pointer moves off the slider before releasing
+window.addEventListener('pointerup',()=>{sliderDragging=false;});
 sliderEl.addEventListener('input',function(){
   const tgt=parseFloat(this.value);
   document.getElementById('slider-display').textContent=tgt+'%';
@@ -785,6 +825,129 @@ function renderFollowups(){
   });
 }
 
+// ─── Product search ───────────────────────────────────────────────────────────
+
+let _products=[];
+let _productsLoaded=false;
+
+async function loadProducts(){
+  if(_productsLoaded)return;
+  try{
+    const res=await fetch('qis_products.json');
+    if(res.ok){
+      _products=await res.json();
+      _productsLoaded=true;
+      console.log('Products loaded:',_products.length);
+    }
+  } catch(e){
+    console.warn('Could not load product list:',e.message);
+  }
+}
+
+function searchProducts(query){
+  if(!query||query.length<2)return[];
+  const q=query.toLowerCase();
+  return _products.filter(p=>
+    p.sku.toLowerCase().includes(q)||
+    p.desc.toLowerCase().includes(q)
+  ).slice(0,12);
+}
+
+function showProductDropdown(inp,itemId,query){
+  const dd=document.querySelector(`.product-dropdown[data-dd-for="${itemId}"]`);
+  if(!dd)return;
+  const results=searchProducts(query);
+  if(!results.length||!query||query.length<2){
+    dd.innerHTML='';dd.classList.remove('show');return;
+  }
+  dd.innerHTML='';
+  results.forEach((p,i)=>{
+    const div=document.createElement('div');div.className='pd-item';
+    if(i===0)div.classList.add('active');
+    const skuEl=document.createElement('div');skuEl.className='pd-sku';skuEl.textContent=p.sku;
+    const descEl=document.createElement('div');descEl.className='pd-desc';descEl.textContent=p.desc;
+    const meta=document.createElement('div');meta.className='pd-meta';
+    const costEl=document.createElement('span');costEl.className='pd-cost';
+    costEl.textContent='Cost: $'+p.cost.toFixed(4);
+    meta.appendChild(costEl);
+    div.appendChild(skuEl);div.appendChild(descEl);div.appendChild(meta);
+    div.addEventListener('mousedown',e=>{
+      e.preventDefault();
+      selectProduct(p,itemId);
+      hideProductDropdown(inp);
+    });
+    dd.appendChild(div);
+  });
+  dd.classList.add('show');
+}
+
+function hideProductDropdown(inp){
+  const wrap=inp.closest('.sku-wrap');
+  if(!wrap)return;
+  const dd=wrap.querySelector('.product-dropdown');
+  if(dd){dd.innerHTML='';dd.classList.remove('show');}
+}
+
+function handleDropdownKeydown(e,inp,itemId){
+  const dd=document.querySelector(`.product-dropdown[data-dd-for="${itemId}"]`);
+  if(!dd||!dd.classList.contains('show'))return false;
+  const items=dd.querySelectorAll('.pd-item');
+  const activeIdx=[...items].findIndex(el=>el.classList.contains('active'));
+  if(e.key==='ArrowDown'){
+    e.preventDefault();
+    const next=Math.min(activeIdx+1,items.length-1);
+    items.forEach((el,i)=>el.classList.toggle('active',i===next));
+    return true;
+  }
+  if(e.key==='ArrowUp'){
+    e.preventDefault();
+    const prev=Math.max(activeIdx-1,0);
+    items.forEach((el,i)=>el.classList.toggle('active',i===prev));
+    return true;
+  }
+  if(e.key==='Enter'||e.key==='Tab'){
+    const active=dd.querySelector('.pd-item.active');
+    if(active){
+      if(e.key==='Enter')e.preventDefault();
+      // Find product by sku text
+      const sku=active.querySelector('.pd-sku').textContent;
+      const p=_products.find(x=>x.sku===sku);
+      if(p){selectProduct(p,itemId);hideProductDropdown(inp);}
+      if(e.key==='Enter')return true;
+    }
+  }
+  if(e.key==='Escape'){
+    hideProductDropdown(inp);return true;
+  }
+  return false;
+}
+
+function selectProduct(p,itemId){
+  const item=lineItems.find(l=>l.id===itemId);
+  if(!item)return;
+  item.sku=p.sku;
+  item.desc=p.desc;
+  item.cost=p.cost;
+  // Update SKU input
+  const skuInp=document.querySelector(`#line-items-body input[data-id="${itemId}"][data-field="sku"]`);
+  if(skuInp)skuInp.value=p.sku;
+  // Update desc input
+  const descInp=document.querySelector(`#line-items-body input[data-id="${itemId}"][data-field="desc"]`);
+  if(descInp)descInp.value=p.desc;
+  // Update cost input and row cells
+  const costInp=document.querySelector(`#line-items-body input[data-id="${itemId}"][data-field="cost"]`);
+  if(costInp)costInp.value=p.cost;
+  updateRowCells(itemId);
+  updateSummary();
+  // Move focus to qty
+  const row=skuInp?skuInp.closest('tr'):null;
+  if(row){
+    const inputs=row.querySelectorAll('input');
+    // qty is index 2
+    if(inputs[2])inputs[2].focus();
+  }
+}
+
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
 document.getElementById('quote-date').value=todayISO();
@@ -797,7 +960,33 @@ document.getElementById('rep').addEventListener('change',function(){
   if(this.value)localStorage.setItem('qis_last_rep',this.value);
 });
 
+loadProducts();
 addLine();
+
+// Render slider ticks and legend using GP constants — single source of truth
+(function(){
+  const maxGP=90;
+  const ticks=document.getElementById('slider-ticks');
+  [[0,'0%'],[GP_RED,GP_RED+'%'],[GP_AMBER,GP_AMBER+'%'],[maxGP,maxGP+'%']].forEach(([val,label])=>{
+    const span=document.createElement('span');
+    span.style.left=((val/maxGP)*100).toFixed(1)+'%';
+    span.textContent=label;
+    ticks.appendChild(span);
+  });
+  const legend=document.getElementById('gp-legend');
+  const items=[
+    ['red','Under '+GP_RED+"% (Jack's approval)"],
+    ['amber',GP_RED+'–'+(GP_AMBER-1)+'% (below target)'],
+    ['green',GP_AMBER+'%+ (on target)']
+  ];
+  items.forEach(([cls,text])=>{
+    const div=document.createElement('div');div.className='legend-item';
+    const dot=document.createElement('div');dot.className='dot '+cls;
+    const span=document.createElement('span');span.textContent=text;
+    div.appendChild(dot);div.appendChild(span);
+    legend.appendChild(div);
+  });
+})();
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
 
@@ -879,31 +1068,14 @@ function loadQuoteIntoForm(q){
   let fups=[];
   try{fups=JSON.parse(q.followups||'[]');}catch(e){}
 
-  // FIX L2: reset data arrays but NOT lineId
-  lineItems=[];followups=[];sliderDragging=false;
+  // Use resetForm() to clear state — single source of truth, no duplication
+  // resetForm() calls addLine() at the end, so clear lineItems AFTER calling it
+  resetForm();
+  // resetForm resets lineItems/followups/lineId — we restore lineId continuity
+  // by re-incrementing from wherever it was (lineId was not reset by resetForm)
+  lineItems=[];followups=[];
+
   const r=localStorage.getItem('qis_last_rep');
-  const clearIds=['business-name','customer','phone','email','quote-number',
-    'lost-notes','competitor','fu-note','po-number'];
-  clearIds.forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
-  ['competitor-price','counter-price'].forEach(id=>document.getElementById(id).value='');
-  document.getElementById('freight').value='0';
-  document.getElementById('status').value='';
-  document.getElementById('lost-reason').value='';
-  document.getElementById('counter-made').value='no';
-  document.getElementById('date-outcome').value='';
-  document.getElementById('date-won').value='';
-  document.getElementById('lost-fields').className='lost-fields';
-  document.getElementById('won-fields').style.display='none';
-  document.getElementById('counter-fields').className='counter-fields';
-  document.getElementById('counter-gp').value='';
-  document.getElementById('freight-toggle').checked=false;
-  document.getElementById('tog-label').textContent='Off';
-  document.getElementById('gp-slider').value=0;
-  document.getElementById('slider-display').textContent='0%';
-  document.getElementById('line-warn').className='warn-banner';
-  document.getElementById('approval-banner').className='approval-banner';
-  document.getElementById('quote-date').value=todayISO();
-  document.getElementById('fu-date').value=todayISO();
 
   document.getElementById('business-name').value=q.business_name||'';
   document.getElementById('customer').value=q.customer||'';
@@ -929,6 +1101,12 @@ function loadQuoteIntoForm(q){
 
 async function saveQuote(){
   const status=document.getElementById('status').value;
+  if(!document.getElementById('business-name').value){
+    showToast('Please enter a business name before saving','error');return;
+  }
+  if(!document.getElementById('rep').value){
+    showToast('Please select a rep before saving','error');return;
+  }
   if(!status){showToast('Please select a status before saving','error');return;}
   if(status==='lost'&&!document.getElementById('lost-reason').value){
     showToast('Please select a lost reason','error');return;
@@ -1065,13 +1243,21 @@ async function loadQuotes(){
         <td style="font-weight:500;color:${gpc}">${(q.gp_percent||0).toFixed(1)}%</td>
         <td><span class="status-pill ${e(q.status)||'pending'}">${e(q.status)||''}</span></td>
         <td style="white-space:nowrap">
-          <button class="row-action-btn" onclick="duplicateQuote(${sid})">Duplicate</button>
-          <button class="row-action-btn status-btn" onclick="quickStatusUpdate(${sid},'${e(q.status)}','${e(q.business_name)}')">Status</button>
+          <button class="row-action-btn" data-action="duplicate" data-id="${sid}">Duplicate</button>
+          <button class="row-action-btn status-btn" data-action="status" data-id="${sid}" data-status="${e(q.status)}" data-biz="${e(q.business_name)}">Status</button>
         </td>
       </tr>`;
     });
     html+='</tbody></table></div>';
     container.innerHTML=html;
+    // Delegated event listener — avoids XSS-prone inline onclick with DB values
+    container.addEventListener('click',function handler(e){
+      const btn=e.target.closest('[data-action]');
+      if(!btn)return;
+      const id=Number(btn.dataset.id);
+      if(btn.dataset.action==='duplicate') duplicateQuote(id);
+      if(btn.dataset.action==='status') quickStatusUpdate(id,btn.dataset.status,btn.dataset.biz);
+    },{once:true});
   } catch(e){container.innerHTML='<div class="empty-state">Error: '+escHtml(e.message)+'</div>';}
 }
 

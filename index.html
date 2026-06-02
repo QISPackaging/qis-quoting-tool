@@ -456,12 +456,10 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
 const GP_RED=30;    // below this: needs approval
 const GP_AMBER=65;  // below this: below target; at or above: on target
 
-// GitHub data store
-const GH_TOKEN='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';
-const GH_REPO='QISPackaging/qis-quoting-tool';
-const GH_FILE='quotes.json';
-const GH_API='https://api.github.com/repos/'+GH_REPO+'/contents/'+GH_FILE;
-const GH_H={'Accept':'application/vnd.github.v3+json','Authorization':'token '+GH_TOKEN,'Content-Type':'application/json'};
+// ─── Database config (Supabase — to be configured) ───────────────────────────
+const SURL='';  // Supabase project URL goes here
+const SKEY='';  // Supabase anon key goes here
+const H={'Content-Type':'application/json','apikey':SKEY,'Authorization':'Bearer '+SKEY};
 
 let lineItems=[];
 let followups=[];
@@ -949,408 +947,21 @@ let _productsLoaded=false;
 async function loadProducts(){
   if(_productsLoaded)return;
   try{
-    const res=await fetch('qis_products.json');
+    const res=await fetch(SURL+'/rest/v1/quotes',
+      {method:'POST',headers:Object.assign({},H,{'Prefer':'return=minimal'}),
+       body:JSON.stringify(payload)});
     if(res.ok){
-      _products=await res.json();
-      _productsLoaded=true;
-      console.log('Products loaded:',_products.length);
-    }
-  } catch(e){
-    console.warn('Could not load product list:',e.message);
-  }
-}
-
-function searchProducts(query){
-  if(!query||query.length<2)return[];
-  const q=query.toLowerCase();
-  // FIX LOW-13: exclude products with both zero cost and zero sell
-  return _products.filter(p=>
-    (p.cost>0||p.sell>0)&&(
-      p.sku.toLowerCase().includes(q)||
-      p.desc.toLowerCase().includes(q)
-    )
-  ).slice(0,12);
-}
-
-function showProductDropdown(inp,itemId,query){
-  const dd=document.querySelector(`.product-dropdown[data-dd-for="${itemId}"]`);
-  if(!dd)return;
-  const results=searchProducts(query);
-  if(!results.length||!query||query.length<2){
-    dd.innerHTML='';dd.classList.remove('show');return;
-  }
-  // Position dropdown near the input using fixed positioning
-  const rect=inp.getBoundingClientRect();
-  const spaceBelow=window.innerHeight-rect.bottom;
-  const spaceAbove=rect.top;
-  const ddHeight=Math.min(300,results.length*70);
-  if(spaceBelow>=ddHeight||spaceBelow>=spaceAbove){
-    dd.style.top=(rect.bottom+4)+'px';
-    dd.style.bottom='auto';
-  } else {
-    dd.style.bottom=(window.innerHeight-rect.top+4)+'px';
-    dd.style.top='auto';
-  }
-  dd.style.left=rect.left+'px';
-  dd.innerHTML='';
-  results.forEach((p,i)=>{
-    const div=document.createElement('div');div.className='pd-item';
-    if(i===0)div.classList.add('active');
-    const skuEl=document.createElement('div');skuEl.className='pd-sku';skuEl.textContent=p.sku;
-    const descEl=document.createElement('div');descEl.className='pd-desc';descEl.textContent=p.desc;
-    const meta=document.createElement('div');meta.className='pd-meta';
-    const costEl=document.createElement('span');costEl.className='pd-cost';
-    costEl.textContent='Cost: $'+(p.cost?p.cost.toFixed(4):'—');
-    meta.appendChild(costEl);
-    if(p.sell){
-      const sellEl=document.createElement('span');sellEl.className='pd-sell';
-      sellEl.textContent='Sell: $'+p.sell.toFixed(4);
-      meta.appendChild(sellEl);
-    }
-    div.appendChild(skuEl);div.appendChild(descEl);div.appendChild(meta);
-    div.addEventListener('mousedown',e=>{
-      e.preventDefault();
-      selectProduct(p,itemId);
-      hideProductDropdown(inp);
-    });
-    dd.appendChild(div);
-  });
-  dd.classList.add('show');
-}
-
-function hideProductDropdown(inp){
-  const wrap=inp.closest('.sku-wrap');
-  if(!wrap)return;
-  const dd=wrap.querySelector('.product-dropdown');
-  if(dd){dd.innerHTML='';dd.classList.remove('show');}
-}
-
-function handleDropdownKeydown(e,inp,itemId){
-  const dd=document.querySelector(`.product-dropdown[data-dd-for="${itemId}"]`);
-  if(!dd||!dd.classList.contains('show'))return false;
-  const items=dd.querySelectorAll('.pd-item');
-  const activeIdx=[...items].findIndex(el=>el.classList.contains('active'));
-  if(e.key==='ArrowDown'){
-    e.preventDefault();
-    const next=Math.min(activeIdx+1,items.length-1);
-    items.forEach((el,i)=>el.classList.toggle('active',i===next));
-    return true;
-  }
-  if(e.key==='ArrowUp'){
-    e.preventDefault();
-    const prev=Math.max(activeIdx-1,0);
-    items.forEach((el,i)=>el.classList.toggle('active',i===prev));
-    return true;
-  }
-  if(e.key==='Enter'||e.key==='Tab'){
-    const active=dd.querySelector('.pd-item.active');
-    if(active){
-      if(e.key==='Enter')e.preventDefault();
-      // Find product by sku text
-      const sku=active.querySelector('.pd-sku').textContent;
-      const p=_products.find(x=>x.sku===sku);
-      if(p){selectProduct(p,itemId);hideProductDropdown(inp);}
-      if(e.key==='Enter')return true;
-    }
-  }
-  if(e.key==='Escape'){
-    hideProductDropdown(inp);return true;
-  }
-  return false;
-}
-
-function selectProduct(p,itemId){
-  const item=lineItems.find(l=>l.id===itemId);
-  if(!item)return;
-  item.sku=p.sku;
-  item.desc=p.desc;
-  item.cost=p.cost||0;
-  item.sell=p.sell||0;
-  // Update SKU input
-  const skuInp=document.querySelector(`#line-items-body input[data-id="${itemId}"][data-field="sku"]`);
-  if(skuInp)skuInp.value=p.sku;
-  // Update desc input
-  const descInp=document.querySelector(`#line-items-body input[data-id="${itemId}"][data-field="desc"]`);
-  if(descInp)descInp.value=p.desc;
-  // Update cost input
-  const costInp=document.querySelector(`#line-items-body input[data-id="${itemId}"][data-field="cost"]`);
-  if(costInp)costInp.value=p.cost||'';
-  // Update sell input
-  const sellInp=document.querySelector(`#line-items-body input[data-id="${itemId}"][data-field="sell"]`);
-  if(sellInp)sellInp.value=p.sell||'';
-  updateRowCells(itemId);
-  updateSummary();
-  // Move focus to qty
-  const row=skuInp?skuInp.closest('tr'):null;
-  if(row){
-    const inputs=row.querySelectorAll('input');
-    if(inputs[2])inputs[2].focus();
-  }
-}
-
-// ─── Init ─────────────────────────────────────────────────────────────────────
-
-document.getElementById('quote-date').value=todayISO();
-document.getElementById('fu-date').value=todayISO();
-
-// Remember last selected rep via localStorage
-const savedRep=localStorage.getItem('qis_last_rep');
-if(savedRep)document.getElementById('rep').value=savedRep;
-document.getElementById('rep').addEventListener('change',function(){
-  if(this.value)localStorage.setItem('qis_last_rep',this.value);
-});
-
-loadProducts();
-addLine();
-
-// Render slider ticks and legend using GP constants — single source of truth
-(function(){
-  const maxGP=90;
-  const ticks=document.getElementById('slider-ticks');
-  [[0,'0%'],[GP_RED,GP_RED+'%'],[GP_AMBER,GP_AMBER+'%'],[maxGP,maxGP+'%']].forEach(([val,label])=>{
-    const span=document.createElement('span');
-    span.style.left=((val/maxGP)*100).toFixed(1)+'%';
-    span.textContent=label;
-    ticks.appendChild(span);
-  });
-  const legend=document.getElementById('gp-legend');
-  const items=[
-    ['red','Under '+GP_RED+"% (Jack's approval)"],
-    ['amber',GP_RED+'–'+(GP_AMBER-1)+'% (below target)'],
-    ['green',GP_AMBER+'%+ (on target)']
-  ];
-  items.forEach(([cls,text])=>{
-    const div=document.createElement('div');div.className='legend-item';
-    const dot=document.createElement('div');dot.className='dot '+cls;
-    const span=document.createElement('span');span.textContent=text;
-    div.appendChild(dot);div.appendChild(span);
-    legend.appendChild(div);
-  });
-})();
-
-// ─── Toast ────────────────────────────────────────────────────────────────────
-
-let _toastTimer=null;
-function showToast(msg,type){
-  clearTimeout(_toastTimer);
-  const t=document.getElementById('toast');
-  t.textContent=msg;t.className='toast '+type;
-  _toastTimer=setTimeout(()=>{t.className='toast';},4000);
-}
-
-// ─── New quote ────────────────────────────────────────────────────────────────
-
-async function confirmNewQuote(){
-  const lineHasData=lineItems.some(l=>l.sku||l.desc||l.qty>0||l.cost>0||l.sell>0);
-  const hasData=lineHasData||
-    document.getElementById('business-name').value||
-    document.getElementById('customer').value||
-    document.getElementById('rep').value||
-    document.getElementById('quote-number').value||
-    document.getElementById('status').value||
-    followups.length>0;
-  if(hasData){
-    const ok=await openDialog('newquote-overlay','newquote-confirm','newquote-cancel');
-    if(!ok)return;
-  }
-  resetForm();
-}
-
-function resetForm(){
-  // FIX L2: lineItems and followups reset but lineId never resets
-  lineItems=[];followups=[];sliderDragging=false;_savedOnce=false;
-  const clearIds=[
-    'business-name','customer','phone','email','quote-number',
-    'lost-notes','competitor','fu-note','po-number'
-  ];
-  clearIds.forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
-  const r=localStorage.getItem('qis_last_rep');
-  document.getElementById('rep').value=r||'';
-  ['competitor-price','counter-price'].forEach(id=>document.getElementById(id).value='');
-  document.getElementById('freight').value='0';
-  document.getElementById('status').value='';
-  document.getElementById('lost-reason').value='';
-  document.getElementById('counter-made').value='no';
-  document.getElementById('date-outcome').value='';
-  document.getElementById('date-won').value='';
-  document.getElementById('lost-fields').className='lost-fields';
-  document.getElementById('won-fields').style.display='none';
-  document.getElementById('counter-fields').className='counter-fields';
-  document.getElementById('counter-gp').value='';
-  document.getElementById('freight-toggle').checked=false;
-  document.getElementById('tog-label').textContent='Off';
-  document.getElementById('gp-slider').value=0;
-  document.getElementById('slider-display').textContent='0%';
-  document.getElementById('line-warn').className='warn-banner';
-  document.getElementById('approval-banner').className='approval-banner';
-  document.getElementById('quote-date').value=todayISO();
-  document.getElementById('fu-date').value=todayISO();
-  renderLines();updateSummary();renderFollowups();addLine();
-}
-
-// ─── PDF / Print ──────────────────────────────────────────────────────────────
-
-function generatePDF(){
-  const qn=document.getElementById('quote-number').value;
-  const rep=document.getElementById('rep').value;
-  const date=document.getElementById('quote-date').value;
-  document.getElementById('print-quote-number').textContent=qn?'Quote '+qn:'Quote';
-  document.getElementById('print-date').textContent=date?fmtDate(date):'';
-  document.getElementById('print-rep').textContent=rep?'Rep: '+rep:'';
-  window.print();
-}
-
-// ─── Load a quote into the calculator (for duplicate) ─────────────────────────
-
-function loadQuoteIntoForm(q){
-  let lines=[];
-  try{lines=JSON.parse(q.line_items||'[]');}catch(e){}
-  let fups=[];
-  try{fups=JSON.parse(q.followups||'[]');}catch(e){}
-
-  // Use resetForm() to clear state — single source of truth, no duplication
-  // resetForm() calls addLine() at the end, so clear lineItems AFTER calling it
-  resetForm();
-  // resetForm resets lineItems/followups/lineId — we restore lineId continuity
-  // by re-incrementing from wherever it was (lineId was not reset by resetForm)
-  lineItems=[];followups=[];
-
-  const r=localStorage.getItem('qis_last_rep');
-
-  document.getElementById('business-name').value=q.business_name||'';
-  document.getElementById('customer').value=q.customer||'';
-  document.getElementById('phone').value=q.phone||'';
-  document.getElementById('email').value=q.email||'';
-  document.getElementById('rep').value=r||q.rep||'';
-  document.getElementById('freight').value=q.freight||'0';
-  if(q.freight_in_gp){
-    document.getElementById('freight-toggle').checked=true;
-    document.getElementById('tog-label').textContent='On';
-  }
-
-  lineItems=lines.map(l=>({id:lineId++,sku:l.sku||'',desc:l.desc||'',
-    qty:parseFloat(l.qty)||0,cost:parseFloat(l.cost)||0,sell:parseFloat(l.sell)||0}));
-  followups=fups.map(f=>({...f,id:Date.now()+Math.random()}));
-
-  renderLines();updateSummary();renderFollowups();
-  showTab('calculator',document.querySelectorAll('.tab')[0]);
-  showToast('Quote duplicated — enter a new quote number before saving','success');
-}
-
-// ─── Save quote ───────────────────────────────────────────────────────────────
-
-async function saveQuote(){
-  const status=document.getElementById('status').value;
-  if(!document.getElementById('business-name').value){
-    showToast('Please enter a business name before saving','error');return;
-  }
-  if(!document.getElementById('rep').value){
-    showToast('Please select a rep before saving','error');return;
-  }
-  if(!status){showToast('Please select a status before saving','error');return;}
-  if(status==='lost'&&!document.getElementById('lost-reason').value){
-    showToast('Please select a lost reason','error');return;
-  }
-
-  // FIX L3: validLines used for both the warning check and all calculations
-  const validLines=getValidLines();
-  if(!validLines.length){showToast('Please add at least one line item','error');return;}
-
-  const warnEl=document.getElementById('line-warn');
-  const incomplete=validLines.filter(l=>l.sell===0||l.cost===0||l.qty===0);
-  if(incomplete.length){
-    warnEl.textContent=incomplete.length+' line item'+(incomplete.length>1?'s have':' has')+' missing qty, cost, or sell price. GP may be inaccurate.';
-    warnEl.className='warn-banner show';
-  } else warnEl.className='warn-banner';
-
-  const tS=validLines.reduce((a,l)=>a+(l.sell*l.qty),0);
-  const tC=validLines.reduce((a,l)=>a+(l.cost*l.qty),0);
-  const freight=parseFloat(document.getElementById('freight').value)||0;
-  const freightOn=document.getElementById('freight-toggle').checked;
-  const effectiveCost=freightOn?tC+freight:tC;
-  const tG=tS-effectiveCost;
-  const ogp=tS===0?0:(tG/tS)*100;
-  const baseGP=tS===0?0:((tS-tC)/tS)*100;
-
-  const counterGpRaw=document.getElementById('counter-gp').value;
-  const counterGpNum=counterGpRaw?parseFloat(counterGpRaw)||null:null;
-  const competitorPriceEl=document.getElementById('competitor-price');
-  const competitorPrice=competitorPriceEl.value===''?null:parseFloat(competitorPriceEl.value);
-  const counterPriceEl=document.getElementById('counter-price');
-  const counterPrice=counterPriceEl.value===''?null:parseFloat(counterPriceEl.value);
-
-  // FIX L11: followup dates saved as null not empty string for DB date columns
-  const cleanFollowups=followups.map(f=>({...f,date:f.date||null}));
-
-  const btn=document.getElementById('save-btn');
-  btn.disabled=true;btn.textContent='Saving...';
-
-  const payload={
-    business_name:document.getElementById('business-name').value||null,
-    customer:document.getElementById('customer').value||null,
-    phone:document.getElementById('phone').value||null,
-    email:document.getElementById('email').value||null,
-    rep:document.getElementById('rep').value||null,
-    quote_number:document.getElementById('quote-number').value||null,
-    quote_date:document.getElementById('quote-date').value||null,
-    status,freight,freight_in_gp:freightOn,
-    sell_price:parseFloat(tS.toFixed(2)),
-    cost_price:parseFloat(tC.toFixed(2)),
-    gp_percent:parseFloat(ogp.toFixed(2)),
-    gp_percent_ex_freight:parseFloat(baseGP.toFixed(2)),
-    gross_profit:parseFloat(tG.toFixed(2)),
-    line_items:JSON.stringify(validLines),
-    followups:JSON.stringify(cleanFollowups),
-    po_number:document.getElementById('po-number').value||null,
-    date_won:document.getElementById('date-won').value||null,
-    lost_reason:document.getElementById('lost-reason').value||null,
-    date_outcome:document.getElementById('date-outcome').value||null,
-    competitor:document.getElementById('competitor').value||null,
-    competitor_price:competitorPrice,
-    lost_notes:document.getElementById('lost-notes').value||null,
-    counter_made:document.getElementById('counter-made').value,
-    counter_price:counterPrice,counter_gp:counterGpNum,
-    // FIX SEC-4: only populate lost fields when status is actually lost
-    lost_order_value:status==='lost'?parseFloat(tS.toFixed(2)):null,
-    lost_margin:status==='lost'?parseFloat(tG.toFixed(2)):null
-  };
-
-  try{
-    // Read current quotes file from GitHub
-    let sha=null;
-    let quotes=[];
-    const getRes=await fetch(GH_API,{headers:GH_H});
-    if(getRes.ok){
-      const fileData=await getRes.json();
-      sha=fileData.sha;
-      try{quotes=JSON.parse(atob(fileData.content.split('\n').join('')));}catch(e){quotes=[];}
-    } else if(getRes.status!==404){
-      showToast('Error reading quotes file — '+getRes.status,'error');
-      btn.textContent='Save quote';btn.disabled=false;return;
-    }
-    // Add new quote with ID and timestamp
-    payload.id=Date.now();
-    payload.created_at=new Date().toISOString();
-    quotes.push(payload);
-    // Write back to GitHub
-    const body={message:'Save quote — '+( payload.quote_number||payload.business_name||'unnamed'),
-      content:btoa(unescape(encodeURIComponent(JSON.stringify(quotes,null,2))))};
-    if(sha)body.sha=sha;
-    const putRes=await fetch(GH_API,{method:'PUT',headers:GH_H,body:JSON.stringify(body)});
-    if(putRes.ok){
       showToast('Quote saved successfully','success');
       document.getElementById('line-warn').className='warn-banner';
-      // FIX UX-2: keep save button disabled after save to prevent duplicate saves
-      // It re-enables when the user changes any field (handled by _formDirty flag)
       _savedOnce=true;
       btn.textContent='Saved';
-      return; // skip the re-enable at the bottom
+      return;
     } else {
-      const txt=await putRes.text();
-      showToast('Error saving — '+putRes.status,'error');
-      console.error(putRes.status,txt);
+      const txt=await res.text();
+      showToast('Database not configured yet — '+res.status,'error');
+      console.error(res.status,txt);
     }
-  } catch(e){showToast('Connection error: '+e.message,'error');}
+  } catch(e){showToast('Database not yet configured','error');}
   btn.textContent='Save quote';btn.disabled=false;
 }
 
@@ -1369,14 +980,9 @@ async function loadQuotes(){
   const fr=document.getElementById('filter-rep').value.toLowerCase();
   const fg=document.getElementById('filter-gp').value;
   try{
-    const res=await fetch(GH_API,{headers:GH_H});
-    if(res.status===404){container.innerHTML='<div class="empty-state">No quotes saved yet</div>';return;}
-    if(!res.ok){container.innerHTML='<div class="empty-state">Error loading quotes ('+res.status+')</div>';return;}
-    const fileData=await res.json();
-    let data=[];
-    try{data=JSON.parse(atob(fileData.content.split('\n').join('')));}catch(e){data=[];}
-    // Sort newest first
-    data.sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
+    const res=await fetch(SURL+'/rest/v1/quotes?order=created_at.desc&limit=200'+(fs?'&status=eq.'+encodeURIComponent(fs):''),{headers:H});
+    if(!res.ok){container.innerHTML='<div class="empty-state">Database not configured yet ('+res.status+')</div>';return;}
+    let data=await res.json();
     _cachedQuotes=data;
     if(fc)data=data.filter(q=>
       (q.business_name||'').toLowerCase().includes(fc)||
@@ -1501,28 +1107,18 @@ async function quickStatusUpdate(id,currentStatus,businessName){
 
 async function patchQuoteStatus(id,newStatus){
   try{
-    const getRes=await fetch(GH_API,{headers:GH_H});
-    if(!getRes.ok){showToast('Error reading quotes — '+getRes.status,'error');return;}
-    const fileData=await getRes.json();
-    let quotes=[];
-    try{quotes=JSON.parse(atob(fileData.content.split('\n').join('')));}catch(e){}
-    const idx=quotes.findIndex(q=>q.id===id);
-    if(idx===-1){showToast('Quote not found','error');return;}
-    quotes[idx].status=newStatus;
-    quotes[idx].updated_at=new Date().toISOString();
-    const body={message:'Update status — '+newStatus,
-      content:btoa(unescape(encodeURIComponent(JSON.stringify(quotes,null,2)))),
-      sha:fileData.sha};
-    const putRes=await fetch(GH_API,{method:'PUT',headers:GH_H,body:JSON.stringify(body)});
-    if(putRes.ok){
+    const res=await fetch(SURL+'/rest/v1/quotes?id=eq.'+id,
+      {method:'PATCH',headers:Object.assign({},H,{'Prefer':'return=minimal'}),
+       body:JSON.stringify({status:newStatus})});
+    if(res.ok){
       showToast('Status updated to '+newStatus,'success');
       loadQuotes();
     } else {
-      const txt=await putRes.text();
-      showToast('Error updating status — '+putRes.status,'error');
-      console.error(putRes.status,txt);
+      const txt=await res.text();
+      showToast('Database not configured yet — '+res.status,'error');
+      console.error(res.status,txt);
     }
-  } catch(e){showToast('Connection error: '+e.message,'error');}
+  } catch(e){showToast('Database not yet configured','error');}
 }
 </script>
 </body>

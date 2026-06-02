@@ -1308,8 +1308,7 @@ async function saveQuote(){
     if(getRes.ok){
       const fileData=await getRes.json();
       sha=fileData.sha;
-      try{quotes=JSON.parse(atob(fileData.content.replace(/
-/g,'')));}catch(e){quotes=[];}
+      try{quotes=JSON.parse(atob(fileData.content.split('\n').join('')));}catch(e){quotes=[];}
     } else if(getRes.status!==404){
       showToast('Error reading quotes file — '+getRes.status,'error');
       btn.textContent='Save quote';btn.disabled=false;return;
@@ -1355,8 +1354,7 @@ async function loadQuotes(){
     if(!res.ok){container.innerHTML='<div class="empty-state">Error loading quotes ('+res.status+')</div>';return;}
     const fileData=await res.json();
     let data=[];
-    try{data=JSON.parse(atob(fileData.content.replace(/
-/g,'')));}catch(e){data=[];}
+    try{data=JSON.parse(atob(fileData.content.split('\n').join('')));}catch(e){data=[];}
     // Sort newest first
     data.sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
     _cachedQuotes=data;
@@ -1487,8 +1485,7 @@ async function patchQuoteStatus(id,newStatus){
     if(!getRes.ok){showToast('Error reading quotes — '+getRes.status,'error');return;}
     const fileData=await getRes.json();
     let quotes=[];
-    try{quotes=JSON.parse(atob(fileData.content.replace(/
-/g,'')));}catch(e){}
+    try{quotes=JSON.parse(atob(fileData.content.split('\n').join('')));}catch(e){}
     const idx=quotes.findIndex(q=>q.id===id);
     if(idx===-1){showToast('Quote not found','error');return;}
     quotes[idx].status=newStatus;

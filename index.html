@@ -147,8 +147,8 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
 .print-only{display:none}
 
 /* Product search dropdown */
-.sku-wrap{position:relative;}
-.product-dropdown{display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #e0e0e0;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.1);z-index:200;max-height:260px;overflow-y:auto;min-width:420px;}
+.sku-wrap{position:static;}
+.product-dropdown{display:none;position:fixed;background:#fff;border:1px solid #e0e0e0;border-radius:8px;box-shadow:0 4px 24px rgba(0,0,0,0.15);z-index:9999;max-height:300px;overflow-y:auto;width:480px;}
 .product-dropdown.show{display:block;}
 .pd-item{padding:8px 12px;cursor:pointer;border-bottom:1px solid #f0f0f0;font-size:12px;}
 .pd-item:last-child{border-bottom:none;}
@@ -860,6 +860,19 @@ function showProductDropdown(inp,itemId,query){
   if(!results.length||!query||query.length<2){
     dd.innerHTML='';dd.classList.remove('show');return;
   }
+  // Position dropdown near the input using fixed positioning
+  const rect=inp.getBoundingClientRect();
+  const spaceBelow=window.innerHeight-rect.bottom;
+  const spaceAbove=rect.top;
+  const ddHeight=Math.min(300,results.length*70);
+  if(spaceBelow>=ddHeight||spaceBelow>=spaceAbove){
+    dd.style.top=(rect.bottom+4)+'px';
+    dd.style.bottom='auto';
+  } else {
+    dd.style.bottom=(window.innerHeight-rect.top+4)+'px';
+    dd.style.top='auto';
+  }
+  dd.style.left=rect.left+'px';
   dd.innerHTML='';
   results.forEach((p,i)=>{
     const div=document.createElement('div');div.className='pd-item';

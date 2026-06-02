@@ -468,6 +468,8 @@ let followups=[];
 // FIX L2: lineId never resets — always increments to guarantee unique IDs
 let lineId=0;
 let sliderDragging=false;
+// FIX UX-2: track whether current form has been saved to prevent duplicate saves
+let _savedOnce=false;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -525,9 +527,10 @@ function addLine(){
   // FIX L2: lineId never resets, so IDs are always unique within the session
   lineItems.push({id:lineId++,sku:'',desc:'',qty:0,cost:0,sell:0});
   renderLines();
-  const rows=document.querySelectorAll('#line-items-body tr');
+  // FIX CQ-6: exclude slider rows to get the actual last data row
+  const rows=document.querySelectorAll('#line-items-body tr:not(.line-slider-row)');
   if(rows.length){
-    const inp=rows[rows.length-1].querySelector('input');
+    const inp=rows[rows.length-1].querySelector('input[type="text"],input[type="number"]');
     if(inp)inp.focus();
   }
 }
@@ -594,7 +597,8 @@ function renderLines(){
 
     // Per-line GP slider row — only shown when cost > 0
     const sliderTr=document.createElement('tr');
-    sliderTr.className='line-slider-row'+(item.cost>0?' show':'');
+    // FIX UX-6: no-print so slider rows don't appear in PDF output
+    sliderTr.className='line-slider-row no-print'+(item.cost>0?' show':'');
     sliderTr.dataset.sliderRow=item.id;
     const sliderTd=document.createElement('td');
     sliderTd.className='line-slider-cell';
@@ -607,12 +611,12 @@ function renderLines(){
     lsSlider.type='range';lsSlider.min=0;lsSlider.max=90;lsSlider.step=1;
     lsSlider.dataset.sliderFor=item.id;
     // Set slider to current GP
-    const currentGP=item.sell>0?Math.max(0,Math.min(90,Math.round(calcGP(item.cost,item.sell)))):0;
+    const currentGP=item.sell>0?Math.max(0,Math.min(90,parseFloat(calcGP(item.cost,item.sell).toFixed(1)))):0;
     lsSlider.value=currentGP;
     const lsGp=document.createElement('span');
     lsGp.className='ls-gp';lsGp.dataset.gpLabel=item.id;
     lsGp.style.cssText=gpStyle(currentGP);
-    lsGp.textContent=item.sell>0?currentGP+'%':'—';
+    lsGp.textContent=item.sell>0?currentGP.toFixed(1)+'%':'—';
     const lsSell=document.createElement('span');
     lsSell.className='ls-sell';lsSell.dataset.sellLabel=item.id;
     lsSell.textContent=item.sell>0?'Sell: $'+item.sell.toFixed(2):'';
@@ -621,7 +625,7 @@ function renderLines(){
       const it=lineItems.find(l=>l.id===item.id);
       if(!it||!it.cost)return;
       it.sell=parseFloat((it.cost/(1-tgt/100)).toFixed(2));
-      lsGp.textContent=tgt+'%';
+      lsGp.textContent=parseFloat(tgt).toFixed(1)+'%';
       lsGp.style.cssText=gpStyle(tgt);
       lsSell.textContent='Sell: $'+it.sell.toFixed(2);
       updateRowCells(it.id);
@@ -720,12 +724,12 @@ function updateRowCells(id){
   const lsGp=document.querySelector(`[data-gp-label="${id}"]`);
   const lsSell=document.querySelector(`[data-sell-label="${id}"]`);
   const sliderRow=document.querySelector(`[data-slider-row="${id}"]`);
-  if(sliderRow){sliderRow.className='line-slider-row'+(item.cost>0?' show':'');}
+  if(sliderRow){sliderRow.className='line-slider-row no-print'+(item.cost>0?' show':'');}
   if(lsSlider&&document.activeElement!==lsSlider){
     const sv=item.sell>0?Math.min(90,Math.max(0,Math.round(gp))):0;
     lsSlider.value=sv;
   }
-  if(lsGp){lsGp.textContent=item.sell>0?Math.round(gp)+'%':'—';lsGp.style.cssText=gpStyle(gp);}
+  if(lsGp){lsGp.textContent=item.sell>0?gp.toFixed(1)+'%':'—';lsGp.style.cssText=gpStyle(gp);}
   if(lsSell){lsSell.textContent=item.sell>0?'Sell: $'+item.sell.toFixed(2):'';}
 }
 
@@ -750,9 +754,10 @@ function lineKeyNav(e,rowIdx,colIdx){
 }
 
 function focusCell(rowIdx,colIdx){
-  const rows=document.querySelectorAll('#line-items-body tr');
+  // FIX CQ-5: exclude slider rows so rowIdx maps correctly to data rows only
+  const rows=document.querySelectorAll('#line-items-body tr:not(.line-slider-row)');
   if(!rows[rowIdx])return;
-  const inputs=rows[rowIdx].querySelectorAll('input');
+  const inputs=rows[rowIdx].querySelectorAll('input[type="text"],input[type="number"]');
   if(inputs[colIdx])inputs[colIdx].focus();
 }
 
@@ -765,6 +770,12 @@ function getValidLines(){
 }
 
 function updateSummary(){
+  // FIX UX-2: if form changes after a save, re-enable the save button
+  if(_savedOnce){
+    _savedOnce=false;
+    const sb=document.getElementById('save-btn');
+    if(sb){sb.disabled=false;sb.textContent='Save quote';}
+  }
   // FIX L3: use validLines for summary so displayed GP matches saved GP
   const valid=getValidLines();
   const tS=valid.reduce((a,l)=>a+(l.sell*l.qty),0);
@@ -952,9 +963,12 @@ async function loadProducts(){
 function searchProducts(query){
   if(!query||query.length<2)return[];
   const q=query.toLowerCase();
+  // FIX LOW-13: exclude products with both zero cost and zero sell
   return _products.filter(p=>
-    p.sku.toLowerCase().includes(q)||
-    p.desc.toLowerCase().includes(q)
+    (p.cost>0||p.sell>0)&&(
+      p.sku.toLowerCase().includes(q)||
+      p.desc.toLowerCase().includes(q)
+    )
   ).slice(0,12);
 }
 
@@ -1144,7 +1158,7 @@ async function confirmNewQuote(){
 
 function resetForm(){
   // FIX L2: lineItems and followups reset but lineId never resets
-  lineItems=[];followups=[];sliderDragging=false;
+  lineItems=[];followups=[];sliderDragging=false;_savedOnce=false;
   const clearIds=[
     'business-name','customer','phone','email','quote-number',
     'lost-notes','competitor','fu-note','po-number'
@@ -1296,8 +1310,9 @@ async function saveQuote(){
     lost_notes:document.getElementById('lost-notes').value||null,
     counter_made:document.getElementById('counter-made').value,
     counter_price:counterPrice,counter_gp:counterGpNum,
-    lost_order_value:parseFloat(tS.toFixed(2)),
-    lost_margin:parseFloat(tG.toFixed(2))
+    // FIX SEC-4: only populate lost fields when status is actually lost
+    lost_order_value:status==='lost'?parseFloat(tS.toFixed(2)):null,
+    lost_margin:status==='lost'?parseFloat(tG.toFixed(2)):null
   };
 
   try{
@@ -1325,6 +1340,11 @@ async function saveQuote(){
     if(putRes.ok){
       showToast('Quote saved successfully','success');
       document.getElementById('line-warn').className='warn-banner';
+      // FIX UX-2: keep save button disabled after save to prevent duplicate saves
+      // It re-enables when the user changes any field (handled by _formDirty flag)
+      _savedOnce=true;
+      btn.textContent='Saved';
+      return; // skip the re-enable at the bottom
     } else {
       const txt=await putRes.text();
       showToast('Error saving — '+putRes.status,'error');

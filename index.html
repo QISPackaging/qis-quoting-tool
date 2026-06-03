@@ -103,6 +103,8 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
 .row-action-btn:hover{background:#eee}
 .row-action-btn.status-btn{background:#E6F1FB;border-color:#B3D4F5;color:#0C447C}
 .row-action-btn.status-btn:hover{background:#cce0f7}
+.row-action-btn.edit-btn{background:#EAF3DE;border-color:#C0DD97;color:#27500A}
+.row-action-btn.edit-btn:hover{background:#d8eccc}
 .filters{display:flex;gap:8px;margin-bottom:1rem;flex-wrap:wrap}
 .filters select,.filters input[type="text"]{font-size:13px;padding:6px 10px;height:32px;border:1px solid #e0e0e0;border-radius:8px;background:#fff;outline:none}
 .empty-state{text-align:center;padding:2rem;color:#888;font-size:13px}
@@ -1154,7 +1156,7 @@ async function confirmNewQuote(){
 
 function resetForm(){
   // FIX L2: lineItems and followups reset but lineId never resets
-  lineItems=[];followups=[];sliderDragging=false;_savedOnce=false;
+  lineItems=[];followups=[];sliderDragging=false;_savedOnce=false;_editingId=null;
   const clearIds=[
     'business-name','customer','phone','email','quote-number',
     'lost-notes','competitor','fu-note','po-number'
@@ -1198,7 +1200,7 @@ function generatePDF(){
 
 // ─── Load a quote into the calculator (for duplicate) ─────────────────────────
 
-function loadQuoteIntoForm(q){
+function loadQuoteIntoForm(q,editMode=false){
   let lines=[];
   try{lines=JSON.parse(q.line_items||'[]');}catch(e){}
   let fups=[];
@@ -1218,6 +1220,8 @@ function loadQuoteIntoForm(q){
   document.getElementById('phone').value=q.phone||'';
   document.getElementById('email').value=q.email||'';
   document.getElementById('rep').value=r||q.rep||'';
+  // Edit mode: keep quote number. Duplicate mode: blank it so rep enters a new one
+  if(editMode) document.getElementById('quote-number').value=q.quote_number||'';
   document.getElementById('freight').value=q.freight||'0';
   if(q.freight_in_gp){
     document.getElementById('freight-toggle').checked=true;
@@ -1229,8 +1233,9 @@ function loadQuoteIntoForm(q){
   followups=fups.map(f=>({...f,id:Date.now()+Math.random()}));
 
   renderLines();updateSummary();renderFollowups();
+  if(!editMode) _editingId=null; // duplicate = new quote, not editing existing
   showTab('calculator',document.querySelectorAll('.tab')[0]);
-  showToast('Quote duplicated — enter a new quote number before saving','success');
+  if(!editMode) showToast('Quote duplicated — enter a new quote number before saving','success');
 }
 
 // ─── Save quote ───────────────────────────────────────────────────────────────
@@ -1279,7 +1284,7 @@ async function saveQuote(){
   const cleanFollowups=followups.map(f=>({...f,date:f.date||null}));
 
   const btn=document.getElementById('save-btn');
-  btn.disabled=true;btn.textContent='Saving...';
+  btn.disabled=true;btn.textContent=_editingId?'Updating...':'Saving...';
 
   const payload={
     business_name:document.getElementById('business-name').value||null,
@@ -1311,15 +1316,24 @@ async function saveQuote(){
   };
 
   try{
-    const res=await fetch(SURL+'/rest/v1/quotes',
-      {method:'POST',headers:Object.assign({},H,{'Prefer':'return=minimal'}),
-       body:JSON.stringify(payload)});
+    let res;
+    if(_editingId){
+      // PATCH — update existing quote
+      res=await fetch(SURL+'/rest/v1/quotes?id=eq.'+_editingId,
+        {method:'PATCH',headers:Object.assign({},H,{'Prefer':'return=minimal'}),
+         body:JSON.stringify(payload)});
+    } else {
+      // POST — create new quote
+      res=await fetch(SURL+'/rest/v1/quotes',
+        {method:'POST',headers:Object.assign({},H,{'Prefer':'return=minimal'}),
+         body:JSON.stringify(payload)});
+    }
     if(res.ok){
-      showToast('Quote saved successfully','success');
+      showToast(_editingId?'Quote updated successfully':'Quote saved successfully','success');
       document.getElementById('line-warn').className='warn-banner';
       _savedOnce=true;
-      btn.textContent='Saved';
-      return; // button stays disabled until form changes
+      btn.textContent=_editingId?'Updated':'Saved';
+      return;
     } else {
       const txt=await res.text();
       showToast('Error saving — '+res.status,'error');
@@ -1335,6 +1349,7 @@ let _debTimer=null;
 function debounceLoad(){clearTimeout(_debTimer);_debTimer=setTimeout(loadQuotes,300);}
 
 let _cachedQuotes=[];
+let _editingId=null; // ID of quote currently being edited (null = new quote)
 
 async function loadQuotes(){
   const container=document.getElementById('quotes-container');
@@ -1380,6 +1395,7 @@ async function loadQuotes(){
         <td style="font-weight:500;color:${gpc}">${(q.gp_percent||0).toFixed(1)}%</td>
         <td><span class="status-pill ${e(q.status)||'pending'}">${e(q.status)||''}</span></td>
         <td style="white-space:nowrap">
+          <button class="row-action-btn edit-btn" data-action="edit" data-id="${sid}">Edit</button>
           <button class="row-action-btn" data-action="duplicate" data-id="${sid}">Duplicate</button>
           <button class="row-action-btn status-btn" data-action="status" data-id="${sid}" data-status="${e(q.status)}" data-biz="${e(q.business_name)}">Status</button>
         </td>
@@ -1387,14 +1403,15 @@ async function loadQuotes(){
     });
     html+='</tbody></table></div>';
     container.innerHTML=html;
-    // Delegated event listener — avoids XSS-prone inline onclick with DB values
-    container.addEventListener('click',function handler(e){
+    // Delegated event listener — persistent, handles all clicks on action buttons
+    container.addEventListener('click',function(e){
       const btn=e.target.closest('[data-action]');
       if(!btn)return;
       const id=Number(btn.dataset.id);
+      if(btn.dataset.action==='edit') editQuote(id);
       if(btn.dataset.action==='duplicate') duplicateQuote(id);
       if(btn.dataset.action==='status') quickStatusUpdate(id,btn.dataset.status,btn.dataset.biz);
-    },{once:true});
+    });
   } catch(e){container.innerHTML='<div class="empty-state">Error: '+escHtml(e.message)+'</div>';}
 }
 
@@ -1450,6 +1467,14 @@ function duplicateQuote(id){
   const q=_cachedQuotes.find(x=>x.id===id);
   if(!q){showToast('Quote not found — reload the list and try again','error');return;}
   loadQuoteIntoForm(q);
+}
+
+function editQuote(id){
+  const q=_cachedQuotes.find(x=>x.id===id);
+  if(!q){showToast('Quote not found — reload the list and try again','error');return;}
+  _editingId=id;
+  loadQuoteIntoForm(q,true); // true = editing mode, keep quote number
+  showToast('Editing quote — save will update the existing record','success');
 }
 
 // ─── Quick status update ──────────────────────────────────────────────────────

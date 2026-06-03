@@ -590,9 +590,10 @@ function renderLines(){
       if(e.key==='Tab'){
         if(!e.shiftKey){
           e.preventDefault();
-          const nextRows=document.querySelectorAll('#line-items-body tr');
+          // FIX H: exclude slider rows to get correct next data row
+          const nextRows=document.querySelectorAll('#line-items-body tr:not(.line-slider-row)');
           if(nextRows[rowIdx+1]){
-            const inp=nextRows[rowIdx+1].querySelector('input');
+            const inp=nextRows[rowIdx+1].querySelector('input[type="text"],input[type="number"]');
             if(inp){inp.focus();return;}
           }
           document.getElementById('add-line-btn').focus();
@@ -1227,20 +1228,20 @@ function loadQuoteIntoForm(q,editMode=false){
   let fups=[];
   try{fups=JSON.parse(q.followups||'[]');}catch(e){}
 
-  // Use resetForm() to clear state — single source of truth, no duplication
-  // resetForm() calls addLine() at the end, so clear lineItems AFTER calling it
+  // Save editingId before resetForm clears it, then restore if in edit mode
+  const savedEditingId=_editingId;
   resetForm();
-  // resetForm resets lineItems/followups/lineId — we restore lineId continuity
-  // by re-incrementing from wherever it was (lineId was not reset by resetForm)
-  lineItems=[];followups=[];
-
+  // FIX C4: restore _editingId after resetForm if editing
+  if(editMode) _editingId=savedEditingId;
+  // resetForm already clears lineItems and followups — no need to repeat
   const r=localStorage.getItem('qis_last_rep');
 
   document.getElementById('business-name').value=q.business_name||'';
   document.getElementById('customer').value=q.customer||'';
   document.getElementById('phone').value=q.phone||'';
   document.getElementById('email').value=q.email||'';
-  document.getElementById('rep').value=r||q.rep||'';
+  // FIX H3: edit mode restores the quote's saved rep; duplicate uses localStorage
+  document.getElementById('rep').value=editMode?(q.rep||r||''):(r||q.rep||'');
   // Edit mode: keep quote number. Duplicate mode: blank it so rep enters a new one
   if(editMode) document.getElementById('quote-number').value=q.quote_number||'';
   document.getElementById('quote-date').value=q.quote_date?q.quote_date.substring(0,10):todayISO();
@@ -1467,7 +1468,10 @@ async function loadQuotes(){
       if(btn.dataset.action==='status') quickStatusUpdate(id,btn.dataset.status,btn.dataset.biz);
     };
     container.addEventListener('click',container._clickHandler);
-  } catch(e){container.innerHTML='<div class="empty-state">Error: '+escHtml(e.message)+'</div>';}
+  } catch(e){
+    const msg=e.name==='AbortError'?'Request timed out — try again':escHtml(e.message);
+    container.innerHTML='<div class="empty-state">Error: '+msg+'</div>';
+  }
 }
 
 // ─── Customer history ─────────────────────────────────────────────────────────
@@ -1491,24 +1495,23 @@ function renderCustomerHistory(fc,allQuotes){
   // Use textContent/createElement for DB-sourced data — no innerHTML injection risk
   const div=document.createElement('div');
   div.style.cssText='display:flex;gap:16px;flex-wrap:wrap;font-size:13px';
-  const stats=[
-    ['won',won+' won'],['lost',lost+' lost'],['pending',pending+' pending'],
-    ['total','Total quoted: '+fmtCurrency(totalSell)],
-    ['avg','Avg GP: '+avgGP.toFixed(1)+'%']
+  // FIX 3: use values directly — no fragile string-split pattern
+  const statDefs=[
+    {label:null,value:won+' won'},
+    {label:null,value:lost+' lost'},
+    {label:null,value:pending+' pending'},
+    {label:'Total quoted',value:fmtCurrency(totalSell),color:null},
+    {label:'Avg GP',value:avgGP.toFixed(1)+'%',color:gpColor(avgGP)}
   ];
-  stats.forEach(([key,text])=>{
+  statDefs.forEach(({label,value,color})=>{
     const span=document.createElement('span');
-    const strong=document.createElement('strong');
-    if(key==='avg')strong.style.color=gpColor(avgGP);
-    strong.textContent=text.split(': ')[1]||text.split(' ')[0];
-    if(text.includes(': ')){
-      span.textContent=text.split(': ')[0]+': ';
-      span.appendChild(strong);
-    } else {
-      strong.textContent=text.split(' ')[0];
-      span.appendChild(strong);
-      span.appendChild(document.createTextNode(' '+text.split(' ').slice(1).join(' ')));
+    if(label){
+      span.appendChild(document.createTextNode(label+': '));
     }
+    const strong=document.createElement('strong');
+    strong.textContent=value;
+    if(color)strong.style.color=color;
+    span.appendChild(strong);
     div.appendChild(span);
   });
   body.innerHTML='';
@@ -1554,9 +1557,12 @@ async function patchQuoteStatus(id,newStatus){
   if(_patchInProgress)return;
   _patchInProgress=true;
   try{
+    const pCtrl=new AbortController();
+    const pTimeout=setTimeout(()=>pCtrl.abort(),15000);
     const res=await fetch(SURL+'/rest/v1/quotes?id=eq.'+id,
       {method:'PATCH',headers:Object.assign({},H,{'Prefer':'return=minimal'}),
-       body:JSON.stringify({status:newStatus})});
+       body:JSON.stringify({status:newStatus}),signal:pCtrl.signal});
+    clearTimeout(pTimeout);
     if(res.ok){
       showToast('Status updated to '+newStatus,'success');
       loadQuotes();
@@ -1565,7 +1571,10 @@ async function patchQuoteStatus(id,newStatus){
       showToast('Error updating status — '+res.status,'error');
       console.error(res.status,txt);
     }
-  } catch(e){showToast('Connection error: '+e.message,'error');}
+  } catch(e){
+    const msg=e.name==='AbortError'?'Status update timed out — try again':'Connection error: '+e.message;
+    showToast(msg,'error');
+  }
   finally{_patchInProgress=false;}
 }
 </script>

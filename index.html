@@ -486,7 +486,8 @@ function gpStyle(gp){return gp<GP_RED?'color:#791F1F':gp<GP_AMBER?'color:#633806
 function gpColor(gp){return gp<GP_RED?'#791F1F':gp<GP_AMBER?'#633806':'#27500A';}
 function fmtDate(s){
   if(!s)return'';
-  const p=String(s).split('-');
+  // FIX U4: handle Supabase timestamp strings like "2025-06-03T00:00:00"
+  const p=String(s).substring(0,10).split('-');
   return p.length===3?p[2]+'/'+p[1]+'/'+p[0]:s;
 }
 function todayISO(){
@@ -628,6 +629,9 @@ function renderLines(){
     const lsSell=document.createElement('span');
     lsSell.className='ls-sell';lsSell.dataset.sellLabel=item.id;
     lsSell.textContent=item.sell>0?'Sell: '+fmtCurrency(item.sell):'';
+    lsSlider.addEventListener('pointerdown',()=>{sliderDragging=true;});
+    lsSlider.addEventListener('pointerup',()=>{sliderDragging=false;});
+    lsSlider.addEventListener('pointercancel',()=>{sliderDragging=false;});
     lsSlider.addEventListener('input',function(){
       const tgt=parseFloat(this.value);
       const it=lineItems.find(l=>l.id===item.id);
@@ -700,7 +704,9 @@ function makeNumCell(item,rowIdx,field,colIdx,min,step,placeholder){
   inp.addEventListener('input',e=>{
     const it=lineItems.find(l=>l.id===item.id);
     if(!it)return;
-    it[field]=parseFloat(e.target.value)||0;
+    // FIX D3: qty should be a whole number
+    const parsed=parseFloat(e.target.value)||0;
+    it[field]=field==='qty'?Math.floor(parsed):parsed;
     updateRowCells(item.id);
     updateSummary();
     if(document.getElementById('counter-fields').classList.contains('show'))calcCounterGP();
@@ -786,7 +792,7 @@ function updateSummary(){
   const valid=getValidLines();
   const tS=valid.reduce((a,l)=>a+(l.sell*l.qty),0);
   const tC=valid.reduce((a,l)=>a+(l.cost*l.qty),0);
-  const freight=parseFloat(document.getElementById('freight').value)||0;
+  const freight=Math.max(0,parseFloat(document.getElementById('freight').value)||0);
   const freightOn=document.getElementById('freight-toggle').checked;
   // FIX D1: freight is entered inc GST — divide by 1.1 to get ex-GST cost impact
   const freightExGst=freight/1.1;
@@ -904,7 +910,7 @@ function calcCounterGP(){
   const counterTotal=parseFloat(document.getElementById('counter-price').value)||0;
   const valid=getValidLines();
   const tC=valid.reduce((a,l)=>a+(l.cost*l.qty),0);
-  const freight=parseFloat(document.getElementById('freight').value)||0;
+  const freight=Math.max(0,parseFloat(document.getElementById('freight').value)||0);
   const freightOn=document.getElementById('freight-toggle').checked;
   // FIX D1: freight is entered inc GST — divide by 1.1 to get ex-GST cost impact
   const freightExGst=freight/1.1;
@@ -967,6 +973,7 @@ async function loadProducts(){
     }
   } catch(e){
     console.warn('Could not load product list:',e.message);
+    showToast('Product list could not load — SKU search unavailable','error');
   }
 }
 
@@ -1089,11 +1096,11 @@ function selectProduct(p,itemId){
   if(sellInp)sellInp.value=p.sell||'';
   updateRowCells(itemId);
   updateSummary();
-  // Move focus to qty
+  // FIX Q7: focus qty by data-field not index — safe if columns are reordered
   const row=skuInp?skuInp.closest('tr'):null;
   if(row){
-    const inputs=row.querySelectorAll('input');
-    if(inputs[2])inputs[2].focus();
+    const qtyInp=row.querySelector('input[data-field="qty"]');
+    if(qtyInp)qtyInp.focus();
   }
 }
 
@@ -1194,6 +1201,9 @@ function resetForm(){
   document.getElementById('approval-banner').className='approval-banner';
   document.getElementById('quote-date').value=todayISO();
   document.getElementById('fu-date').value=todayISO();
+  // FIX U8: explicitly re-enable save button on reset
+  const sb=document.getElementById('save-btn');
+  if(sb){sb.disabled=false;sb.textContent='Save quote';}
   renderLines();updateSummary();renderFollowups();addLine();
 }
 
@@ -1233,10 +1243,34 @@ function loadQuoteIntoForm(q,editMode=false){
   document.getElementById('rep').value=r||q.rep||'';
   // Edit mode: keep quote number. Duplicate mode: blank it so rep enters a new one
   if(editMode) document.getElementById('quote-number').value=q.quote_number||'';
+  document.getElementById('quote-date').value=q.quote_date?q.quote_date.substring(0,10):todayISO();
   document.getElementById('freight').value=q.freight||'0';
   if(q.freight_in_gp){
     document.getElementById('freight-toggle').checked=true;
     document.getElementById('tog-label').textContent='On';
+  }
+  // FIX C4: restore status and all outcome fields
+  if(q.status){
+    document.getElementById('status').value=q.status;
+    if(q.status==='lost'){
+      document.getElementById('lost-fields').className='lost-fields show';
+      document.getElementById('lost-reason').value=q.lost_reason||'';
+      document.getElementById('date-outcome').value=q.date_outcome?q.date_outcome.substring(0,10):'';
+      document.getElementById('competitor').value=q.competitor||'';
+      document.getElementById('competitor-price').value=q.competitor_price||'';
+      document.getElementById('lost-notes').value=q.lost_notes||'';
+      if(q.counter_made==='yes'){
+        document.getElementById('counter-made').value='yes';
+        document.getElementById('counter-fields').className='counter-fields show';
+        document.getElementById('counter-price').value=q.counter_price||'';
+        document.getElementById('counter-gp').value=q.counter_gp?q.counter_gp.toFixed(1)+'%':'';
+      }
+    }
+    if(q.status==='won'){
+      document.getElementById('won-fields').style.display='block';
+      document.getElementById('po-number').value=q.po_number||'';
+      document.getElementById('date-won').value=q.date_won?q.date_won.substring(0,10):'';
+    }
   }
 
   lineItems=lines.map(l=>({id:lineId++,sku:l.sku||'',desc:l.desc||'',
@@ -1277,7 +1311,7 @@ async function saveQuote(){
 
   const tS=validLines.reduce((a,l)=>a+(l.sell*l.qty),0);
   const tC=validLines.reduce((a,l)=>a+(l.cost*l.qty),0);
-  const freight=parseFloat(document.getElementById('freight').value)||0;
+  const freight=Math.max(0,parseFloat(document.getElementById('freight').value)||0);
   const freightOn=document.getElementById('freight-toggle').checked;
   // FIX D1: freight is entered inc GST — divide by 1.1 to get ex-GST cost impact
   const freightExGst=freight/1.1;
@@ -1330,17 +1364,20 @@ async function saveQuote(){
 
   try{
     let res;
+    const ctrl=new AbortController();
+    const tout=setTimeout(()=>ctrl.abort(),15000);
     if(_editingId){
       // PATCH — update existing quote
       res=await fetch(SURL+'/rest/v1/quotes?id=eq.'+_editingId,
         {method:'PATCH',headers:Object.assign({},H,{'Prefer':'return=minimal'}),
-         body:JSON.stringify(payload)});
+         body:JSON.stringify(payload),signal:ctrl.signal});
     } else {
       // POST — create new quote
       res=await fetch(SURL+'/rest/v1/quotes',
         {method:'POST',headers:Object.assign({},H,{'Prefer':'return=minimal'}),
-         body:JSON.stringify(payload)});
+         body:JSON.stringify(payload),signal:ctrl.signal});
     }
+    clearTimeout(tout);
     if(res.ok){
       showToast(_editingId?'Quote updated successfully':'Quote saved successfully','success');
       document.getElementById('line-warn').className='warn-banner';
@@ -1372,7 +1409,10 @@ async function loadQuotes(){
   const fr=document.getElementById('filter-rep').value.toLowerCase();
   const fg=document.getElementById('filter-gp').value;
   try{
-    const res=await fetch(SURL+'/rest/v1/quotes?order=created_at.desc&limit=200'+(fs?'&status=eq.'+encodeURIComponent(fs):''),{headers:H});
+    const loadCtrl=new AbortController();
+    const loadTimeout=setTimeout(()=>loadCtrl.abort(),15000);
+    const res=await fetch(SURL+'/rest/v1/quotes?order=created_at.desc&limit=200'+(fs?'&status=eq.'+encodeURIComponent(fs):''),{headers:H,signal:loadCtrl.signal});
+    clearTimeout(loadTimeout);
     if(!res.ok){container.innerHTML='<div class="empty-state">Error loading quotes ('+res.status+')</div>';return;}
     let data=await res.json();
     _cachedQuotes=data;
@@ -1416,15 +1456,17 @@ async function loadQuotes(){
     });
     html+='</tbody></table></div>';
     container.innerHTML=html;
-    // Delegated event listener — persistent, handles all clicks on action buttons
-    container.addEventListener('click',function(e){
+    // FIX U2: use a single named handler, reassigned each render to prevent stacking
+    if(container._clickHandler) container.removeEventListener('click',container._clickHandler);
+    container._clickHandler=function(e){
       const btn=e.target.closest('[data-action]');
       if(!btn)return;
       const id=Number(btn.dataset.id);
       if(btn.dataset.action==='edit') editQuote(id);
       if(btn.dataset.action==='duplicate') duplicateQuote(id);
       if(btn.dataset.action==='status') quickStatusUpdate(id,btn.dataset.status,btn.dataset.biz);
-    });
+    };
+    container.addEventListener('click',container._clickHandler);
   } catch(e){container.innerHTML='<div class="empty-state">Error: '+escHtml(e.message)+'</div>';}
 }
 
@@ -1497,7 +1539,7 @@ let _statusUpdateId=null;
 async function quickStatusUpdate(id,currentStatus,businessName){
   _statusUpdateId=id;
   document.getElementById('status-dialog-desc').textContent=
-    (businessName||'This quote')+' is currently '+currentStatus+'.';
+    (businessName||'This quote')+' is currently '+(currentStatus||'unknown')+'.';
   document.getElementById('status-dialog-select').value=currentStatus;
   const confirmed=await openDialog('status-overlay','status-confirm','status-cancel');
   if(!confirmed){_statusUpdateId=null;return;}

@@ -489,7 +489,14 @@ function fmtDate(s){
   const p=String(s).split('-');
   return p.length===3?p[2]+'/'+p[1]+'/'+p[0]:s;
 }
-function todayISO(){return new Date().toISOString().split('T')[0];}
+function todayISO(){
+  // FIX Q8: use local date not UTC — prevents date showing as tomorrow after 10pm AEST
+  const d=new Date();
+  const y=d.getFullYear();
+  const m=String(d.getMonth()+1).padStart(2,'0');
+  const day=String(d.getDate()).padStart(2,'0');
+  return y+'-'+m+'-'+day;
+}
 
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
 
@@ -781,7 +788,9 @@ function updateSummary(){
   const tC=valid.reduce((a,l)=>a+(l.cost*l.qty),0);
   const freight=parseFloat(document.getElementById('freight').value)||0;
   const freightOn=document.getElementById('freight-toggle').checked;
-  const effectiveCost=freightOn?tC+freight:tC;
+  // FIX D1: freight is entered inc GST — divide by 1.1 to get ex-GST cost impact
+  const freightExGst=freight/1.1;
+  const effectiveCost=freightOn?tC+freightExGst:tC;
   const tG=tS-effectiveCost;
   const ogp=tS===0?0:(tG/tS)*100;
   const baseGP=tS===0?0:((tS-tC)/tS)*100;
@@ -897,7 +906,9 @@ function calcCounterGP(){
   const tC=valid.reduce((a,l)=>a+(l.cost*l.qty),0);
   const freight=parseFloat(document.getElementById('freight').value)||0;
   const freightOn=document.getElementById('freight-toggle').checked;
-  const effectiveCost=freightOn?tC+freight:tC;
+  // FIX D1: freight is entered inc GST — divide by 1.1 to get ex-GST cost impact
+  const freightExGst=freight/1.1;
+  const effectiveCost=freightOn?tC+freightExGst:tC;
   const cgp=counterTotal===0?0:((counterTotal-effectiveCost)/counterTotal)*100;
   document.getElementById('counter-gp').value=counterTotal>0?cgp.toFixed(1)+'%':'';
 }
@@ -998,11 +1009,11 @@ function showProductDropdown(inp,itemId,query){
     const descEl=document.createElement('div');descEl.className='pd-desc';descEl.textContent=p.desc;
     const meta=document.createElement('div');meta.className='pd-meta';
     const costEl=document.createElement('span');costEl.className='pd-cost';
-    costEl.textContent='Cost: $'+(p.cost?p.cost.toFixed(4):'—');
+    costEl.textContent='Cost: '+(p.cost?fmtCurrency(p.cost):'—');
     meta.appendChild(costEl);
     if(p.sell){
       const sellEl=document.createElement('span');sellEl.className='pd-sell';
-      sellEl.textContent='Sell: $'+p.sell.toFixed(4);
+      sellEl.textContent='Sell: '+fmtCurrency(p.sell);
       meta.appendChild(sellEl);
     }
     div.appendChild(skuEl);div.appendChild(descEl);div.appendChild(meta);
@@ -1268,7 +1279,9 @@ async function saveQuote(){
   const tC=validLines.reduce((a,l)=>a+(l.cost*l.qty),0);
   const freight=parseFloat(document.getElementById('freight').value)||0;
   const freightOn=document.getElementById('freight-toggle').checked;
-  const effectiveCost=freightOn?tC+freight:tC;
+  // FIX D1: freight is entered inc GST — divide by 1.1 to get ex-GST cost impact
+  const freightExGst=freight/1.1;
+  const effectiveCost=freightOn?tC+freightExGst:tC;
   const tG=tS-effectiveCost;
   const ogp=tS===0?0:(tG/tS)*100;
   const baseGP=tS===0?0:((tS-tC)/tS)*100;
@@ -1494,7 +1507,10 @@ async function quickStatusUpdate(id,currentStatus,businessName){
   _statusUpdateId=null;
 }
 
+let _patchInProgress=false;
 async function patchQuoteStatus(id,newStatus){
+  if(_patchInProgress)return;
+  _patchInProgress=true;
   try{
     const res=await fetch(SURL+'/rest/v1/quotes?id=eq.'+id,
       {method:'PATCH',headers:Object.assign({},H,{'Prefer':'return=minimal'}),
@@ -1508,6 +1524,7 @@ async function patchQuoteStatus(id,newStatus){
       console.error(res.status,txt);
     }
   } catch(e){showToast('Connection error: '+e.message,'error');}
+  finally{_patchInProgress=false;}
 }
 </script>
 </body>

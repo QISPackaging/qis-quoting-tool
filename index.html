@@ -166,7 +166,7 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
 
 /* Product search dropdown */
 .sku-wrap{position:static;}
-.product-dropdown{display:none;position:fixed;background:#fff;border:1px solid #e0e0e0;border-radius:8px;box-shadow:0 4px 24px rgba(0,0,0,0.15);z-index:9999;max-height:300px;overflow-y:auto;width:480px;}
+.product-dropdown{display:none;position:absolute;background:#fff;border:1px solid #e0e0e0;border-radius:8px;box-shadow:0 4px 24px rgba(0,0,0,0.15);z-index:9999;max-height:300px;overflow-y:auto;width:480px;}
 .product-dropdown.show{display:block;}
 .pd-item{padding:8px 12px;cursor:pointer;border-bottom:1px solid #f0f0f0;font-size:12px;}
 .pd-item:last-child{border-bottom:none;}
@@ -465,8 +465,9 @@ const H={'Content-Type':'application/json','apikey':SKEY,'Authorization':'Bearer
 
 let lineItems=[];
 let followups=[];
-// FIX L2: lineId never resets — always increments to guarantee unique IDs
-let lineId=0;
+// FIX B4: start lineId at a random large offset so IDs never collide with
+// IDs from a previous session's saved line_items JSON
+let lineId=Math.floor(Math.random()*1000000);
 let sliderDragging=false;
 let _savedOnce=false;
 
@@ -917,7 +918,10 @@ function calcCounterGP(){
   const freightExGst=freight/1.1;
   const effectiveCost=freightOn?tC+freightExGst:tC;
   const cgp=counterTotal===0?0:((counterTotal-effectiveCost)/counterTotal)*100;
-  document.getElementById('counter-gp').value=counterTotal>0?cgp.toFixed(1)+'%':'';
+  const cgpEl=document.getElementById('counter-gp');
+  cgpEl.value=counterTotal>0?cgp.toFixed(1)+'%':'';
+  // FIX D5: store numeric value as data attribute so saveQuote reads it directly
+  cgpEl.dataset.numericValue=counterTotal>0?cgp.toFixed(2):'';
 }
 
 // ─── Follow-up log ────────────────────────────────────────────────────────────
@@ -996,19 +1000,23 @@ function showProductDropdown(inp,itemId,query){
   if(!results.length||!query||query.length<2){
     dd.innerHTML='';dd.classList.remove('show');return;
   }
-  // Position dropdown near the input using fixed positioning
+  // FIX B1: position using getBoundingClientRect + scroll offset
+  // so dropdown works correctly inside scrolled containers and iframes
   const rect=inp.getBoundingClientRect();
+  const scrollTop=window.pageYOffset||document.documentElement.scrollTop;
+  const scrollLeft=window.pageXOffset||document.documentElement.scrollLeft;
   const spaceBelow=window.innerHeight-rect.bottom;
   const spaceAbove=rect.top;
   const ddHeight=Math.min(300,results.length*70);
   if(spaceBelow>=ddHeight||spaceBelow>=spaceAbove){
-    dd.style.top=(rect.bottom+4)+'px';
+    dd.style.top=(rect.bottom+scrollTop+4)+'px';
     dd.style.bottom='auto';
   } else {
-    dd.style.bottom=(window.innerHeight-rect.top+4)+'px';
-    dd.style.top='auto';
+    dd.style.bottom='auto';
+    dd.style.top=(rect.top+scrollTop-ddHeight-4)+'px';
   }
-  dd.style.left=rect.left+'px';
+  dd.style.left=(rect.left+scrollLeft)+'px';
+  dd.style.position='absolute';
   dd.innerHTML='';
   results.forEach((p,i)=>{
     const div=document.createElement('div');div.className='pd-item';
@@ -1193,7 +1201,8 @@ function resetForm(){
   document.getElementById('lost-fields').className='lost-fields';
   document.getElementById('won-fields').style.display='none';
   document.getElementById('counter-fields').className='counter-fields';
-  document.getElementById('counter-gp').value='';
+  const cgpReset=document.getElementById('counter-gp');
+  cgpReset.value='';cgpReset.dataset.numericValue='';
   document.getElementById('freight-toggle').checked=false;
   document.getElementById('tog-label').textContent='Off';
   document.getElementById('gp-slider').value=0;
@@ -1264,7 +1273,9 @@ function loadQuoteIntoForm(q,editMode=false){
         document.getElementById('counter-made').value='yes';
         document.getElementById('counter-fields').className='counter-fields show';
         document.getElementById('counter-price').value=q.counter_price||'';
-        document.getElementById('counter-gp').value=q.counter_gp?q.counter_gp.toFixed(1)+'%':'';
+        const cgpRestore=document.getElementById('counter-gp');
+        cgpRestore.value=q.counter_gp?q.counter_gp.toFixed(1)+'%':'';
+        cgpRestore.dataset.numericValue=q.counter_gp?q.counter_gp.toFixed(2):'';
       }
     }
     if(q.status==='won'){
@@ -1276,6 +1287,8 @@ function loadQuoteIntoForm(q,editMode=false){
 
   lineItems=lines.map(l=>({id:lineId++,sku:l.sku||'',desc:l.desc||'',
     qty:parseFloat(l.qty)||0,cost:parseFloat(l.cost)||0,sell:parseFloat(l.sell)||0}));
+  // FIX B4 partial: advance lineId past any loaded IDs to prevent future collisions
+  if(lineItems.length) lineId=Math.max(lineId,...lineItems.map(l=>l.id))+1;
   followups=fups.map(f=>({...f,id:Date.now()+Math.random()}));
 
   renderLines();updateSummary();renderFollowups();
@@ -1321,8 +1334,9 @@ async function saveQuote(){
   const ogp=tS===0?0:(tG/tS)*100;
   const baseGP=tS===0?0:((tS-tC)/tS)*100;
 
-  const counterGpRaw=document.getElementById('counter-gp').value;
-  const counterGpNum=counterGpRaw?parseFloat(counterGpRaw)||null:null;
+  // FIX D5: read numeric value from data attribute, not display string
+  const cgpEl=document.getElementById('counter-gp');
+  const counterGpNum=cgpEl.dataset.numericValue?parseFloat(cgpEl.dataset.numericValue)||null:null;
   const competitorPriceEl=document.getElementById('competitor-price');
   const competitorPrice=competitorPriceEl.value===''?null:parseFloat(competitorPriceEl.value);
   const counterPriceEl=document.getElementById('counter-price');
@@ -1333,6 +1347,9 @@ async function saveQuote(){
 
   const btn=document.getElementById('save-btn');
   btn.disabled=true;btn.textContent=_editingId?'Updating...':'Saving...';
+  // FIX B3: track whether save succeeded so finally knows whether to re-enable
+  let _saveFailed=false;
+  try{
 
   const payload={
     business_name:document.getElementById('business-name').value||null,
@@ -1384,14 +1401,28 @@ async function saveQuote(){
       document.getElementById('line-warn').className='warn-banner';
       _savedOnce=true;
       btn.textContent=_editingId?'Updated':'Saved';
-      return;
+      // Don't return — let finally run but _saveFailed=false means button stays as-is
     } else {
+      _saveFailed=true;
       const txt=await res.text();
       showToast('Error saving — '+res.status,'error');
       console.error(res.status,txt);
     }
-  } catch(e){showToast('Connection error: '+e.message,'error');}
-  btn.textContent='Save quote';btn.disabled=false;
+  } catch(e){
+    _saveFailed=true;
+    const msg=e.name==='AbortError'?'Save timed out — try again':'Connection error: '+e.message;
+    showToast(msg,'error');
+  }
+
+  } catch(e){
+    _saveFailed=true;
+    // Outer catch — handles any error before the fetch (e.g. payload construction)
+    showToast('Unexpected error — please try again','error');
+    console.error('saveQuote outer error:',e);
+  } finally{
+    // FIX B3: re-enable button only if save failed — success keeps it as Saved/Updated
+    if(_saveFailed){btn.textContent='Save quote';btn.disabled=false;}
+  }
 }
 
 // ─── Load quotes ──────────────────────────────────────────────────────────────
@@ -1430,33 +1461,65 @@ async function loadQuotes(){
 
     if(!data.length){container.innerHTML='<div class="empty-state">No quotes found</div>';return;}
 
-    let html='<div style="overflow-x:auto"><table class="quotes-table"><thead><tr>'
-      +'<th>Quote #</th><th>Date</th><th>Business</th><th>Contact</th><th>Rep</th>'
-      +'<th>Total sell</th><th>Freight</th><th>GP%</th><th>Status</th><th>Actions</th>'
-      +'</tr></thead><tbody>';
-    data.forEach(q=>{
-      const gpc=gpColor(q.gp_percent||0);
-      const e=s=>escHtml(s);
-      const sid=Number(q.id);
-      html+=`<tr>
-        <td>${e(q.quote_number)||'—'}</td>
-        <td>${e(fmtDate(q.quote_date))}</td>
-        <td>${e(q.business_name)}</td>
-        <td>${e(q.customer)}</td>
-        <td>${e(q.rep)}</td>
-        <td>${fmtCurrency(q.sell_price||0)}</td>
-        <td>${q.freight!=null&&q.freight>0?fmtCurrency(q.freight):'—'}</td>
-        <td style="font-weight:500;color:${gpc}">${(q.gp_percent||0).toFixed(1)}%</td>
-        <td><span class="status-pill ${e(q.status)||'pending'}">${e(q.status)||''}</span></td>
-        <td style="white-space:nowrap">
-          <button class="row-action-btn edit-btn" data-action="edit" data-id="${sid}">Edit</button>
-          <button class="row-action-btn" data-action="duplicate" data-id="${sid}">Duplicate</button>
-          <button class="row-action-btn status-btn" data-action="status" data-id="${sid}" data-status="${e(q.status)}" data-biz="${e(q.business_name)}">Status</button>
-        </td>
-      </tr>`;
+    // FIX XSS: build quotes table with createElement/textContent — no innerHTML with DB values
+    const wrapper=document.createElement('div');wrapper.style.overflowX='auto';
+    const table=document.createElement('table');table.className='quotes-table';
+    const thead=document.createElement('thead');
+    const hrow=document.createElement('tr');
+    ['Quote #','Date','Business','Contact','Rep','Total sell','Freight','GP%','Status','Actions'].forEach(h=>{
+      const th=document.createElement('th');th.textContent=h;hrow.appendChild(th);
     });
-    html+='</tbody></table></div>';
-    container.innerHTML=html;
+    thead.appendChild(hrow);table.appendChild(thead);
+    const tbody=document.createElement('tbody');
+    data.forEach(q=>{
+      const sid=Number(q.id);
+      const tr=document.createElement('tr');
+      const cells=[
+        q.quote_number||'—',
+        fmtDate(q.quote_date),
+        q.business_name||'',
+        q.customer||'',
+        q.rep||'',
+        fmtCurrency(q.sell_price||0),
+        q.freight!=null&&q.freight>0?fmtCurrency(q.freight):'—'
+      ];
+      cells.forEach(val=>{const td=document.createElement('td');td.textContent=val;tr.appendChild(td);});
+      // GP% cell with colour
+      const gpTd=document.createElement('td');
+      gpTd.style.cssText='font-weight:500;color:'+gpColor(q.gp_percent||0);
+      gpTd.textContent=(q.gp_percent||0).toFixed(1)+'%'+(q.freight_in_gp?' *':'');
+      tr.appendChild(gpTd);
+      // Status pill
+      const statusTd=document.createElement('td');
+      const pill=document.createElement('span');
+      const safeStatus=['pending','won','lost','withdrawn'].includes(q.status)?q.status:'pending';
+      pill.className='status-pill '+safeStatus;
+      pill.textContent=q.status||'';
+      statusTd.appendChild(pill);tr.appendChild(statusTd);
+      // Action buttons
+      const actionTd=document.createElement('td');actionTd.style.whiteSpace='nowrap';
+      [['edit','Edit','edit-btn'],['duplicate','Duplicate',''],['status','Status','status-btn']].forEach(([action,label,extra])=>{
+        const btn=document.createElement('button');
+        btn.className='row-action-btn'+(extra?' '+extra:'');
+        btn.textContent=label;
+        btn.dataset.action=action;
+        btn.dataset.id=sid;
+        if(action==='status'){btn.dataset.status=q.status||'';btn.dataset.biz=q.business_name||'';}
+        actionTd.appendChild(btn);
+      });
+      tr.appendChild(actionTd);
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);wrapper.appendChild(table);
+    container.innerHTML='';
+    container.appendChild(wrapper);
+    // FIX D2: show freight GP note if any quotes have freight_in_gp
+    if(data.some(q=>q.freight_in_gp)){
+      const note=document.createElement('p');
+      note.style.cssText='font-size:11px;color:#888;margin-top:8px;text-align:right';
+      note.textContent='* GP% includes absorbed freight cost';
+      container.appendChild(note);
+    }
     // FIX U2: use a single named handler, reassigned each render to prevent stacking
     if(container._clickHandler) container.removeEventListener('click',container._clickHandler);
     container._clickHandler=function(e){

@@ -1,0 +1,25 @@
+{
+  "name": "qis-quoting-tool",
+  "version": "1.0.0",
+  "description": "QIS Packaging internal quoting tool — GP calculator and quote tracker.",
+  "main": "index.js",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/QISPackaging/qis-quoting-tool.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/QISPackaging/qis-quoting-tool/issues"
+  },
+  "homepage": "https://github.com/QISPackaging/qis-quoting-tool#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.60.0"
+  }
+}

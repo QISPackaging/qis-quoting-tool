@@ -1,0 +1,186 @@
+const { test, expect } = require('@playwright/test');
+const fs = require('fs');
+const path = require('path');
+
+const products = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'qis_products.json'), 'utf8'));
+
+function mockQuotesApi(page, state = { quotes: [] }) {
+  const quotes = Array.isArray(state) ? state : state.quotes;
+
+  return page.route('**/rest/v1/quotes*', async route => {
+    const method = route.request().method();
+    const url = new URL(route.request().url());
+
+    if (method === 'GET') {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(quotes),
+      });
+    }
+
+    if (method === 'POST') {
+      const payload = JSON.parse(route.request().postData() || '{}');
+      const stored = {
+        id: Date.now(),
+        created_at: new Date().toISOString(),
+        ...payload,
+      };
+      quotes.push(stored);
+      return route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        body: JSON.stringify([stored]),
+      });
+    }
+
+    if (method === 'PATCH') {
+      const id = Number(url.searchParams.get('id')?.replace('eq.', ''));
+      const payload = JSON.parse(route.request().postData() || '{}');
+      const index = quotes.findIndex(item => item.id === id);
+      if (index >= 0) quotes[index] = { ...quotes[index], ...payload };
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([]),
+      });
+    }
+
+    return route.fulfill({
+      status: 404,
+      contentType: 'application/json',
+      body: JSON.stringify({ error: 'Unhandled mock request' }),
+    });
+  });
+}
+
+test.beforeEach(async ({ page }) => {
+  await page.route('**/qis_products.json', route =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(products),
+    })
+  );
+});
+
+test('saves a quote and shows it in the saved quotes list', async ({ page }) => {
+  const state = { quotes: [] };
+  await mockQuotesApi(page, state);
+
+  await page.goto('/');
+  await page.locator('#business-name').fill('Acme Packaging');
+  await page.locator('#customer').fill('Sam Patel');
+  await page.locator('#rep').selectOption('Jack');
+  await page.locator('#status').selectOption('pending');
+  await page.locator('#quote-number').fill('SQ-00000001');
+
+  await page.locator('#line-items-body input[data-field="sku"]').first().fill('TESTSKU');
+  await page.locator('#line-items-body input[data-field="desc"]').first().fill('Test carton');
+  await page.locator('#line-items-body input[data-field="qty"]').first().fill('2');
+  await page.locator('#line-items-body input[data-field="cost"]').first().fill('100');
+  await page.locator('#line-items-body input[data-field="sell"]').first().fill('150');
+
+  await page.locator('#save-btn').click();
+
+  await expect(page.locator('#toast')).toContainText('Quote saved successfully');
+
+  await page.locator('button.tab', { hasText: 'Saved quotes' }).click();
+  await expect(page.locator('table.quotes-table')).toContainText('Acme Packaging');
+  expect(state.quotes.length).toBe(1);
+});
+
+test('edits and duplicates an existing quote', async ({ page }) => {
+  const initialQuotes = [
+    {
+      id: 101,
+      business_name: 'Existing Co',
+      customer: 'Taylor',
+      rep: 'Liam',
+      quote_number: 'SQ-00000099',
+      status: 'pending',
+      quote_date: '2026-06-10',
+      freight: 0,
+      freight_in_gp: false,
+      sell_price: 150,
+      gp_percent: 33.3,
+      line_items: '[{"sku":"TESTSKU","desc":"Test carton","qty":2,"cost":100,"sell":150}]',
+      followups: '[]',
+      created_at: '2026-06-10T00:00:00Z',
+    },
+  ];
+  await mockQuotesApi(page, { quotes: initialQuotes });
+
+  await page.goto('/');
+  await page.locator('button.tab', { hasText: 'Saved quotes' }).click();
+  await page.locator('table.quotes-table tbody tr', { hasText: 'Existing Co' }).locator('button', { hasText: 'Edit' }).click();
+
+  await expect(page.locator('#business-name')).toHaveValue('Existing Co');
+  await page.locator('#business-name').fill('Updated Co');
+  await page.locator('#save-btn').click();
+
+  await expect(page.locator('#toast')).toContainText('Quote updated successfully');
+
+  await page.locator('button.tab', { hasText: 'Saved quotes' }).click();
+  await page.locator('table.quotes-table tbody tr', { hasText: 'Updated Co' }).locator('button', { hasText: 'Duplicate' }).click();
+
+  await expect(page.locator('#toast')).toContainText('Quote duplicated');
+  await expect(page.locator('#quote-number')).toHaveValue('');
+});
+
+test('supports product search auto-fill for line items', async ({ page }) => {
+  await mockQuotesApi(page);
+
+  await page.goto('/');
+  await page.locator('#line-items-body input[data-field="sku"]').first().fill('1000TUBE100UM');
+  await expect(page.locator('.product-dropdown')).toHaveClass(/show/);
+  await page.locator('.product-dropdown .pd-item').first().click();
+
+  await expect(page.locator('#line-items-body input[data-field="sku"]').first()).toHaveValue('1000TUBE100UM');
+  await expect(page.locator('#line-items-body input[data-field="desc"]').first()).toHaveValue(/1000mm Wide Tube/);
+  await expect(page.locator('#line-items-body input[data-field="cost"]').first()).not.toHaveValue('');
+  await expect(page.locator('#line-items-body input[data-field="sell"]').first()).not.toHaveValue('');
+});
+
+test('calculates GP and totals correctly for line items', async ({ page }) => {
+  await mockQuotesApi(page);
+
+  await page.goto('/');
+  await page.locator('#line-items-body input[data-field="qty"]').first().fill('2');
+  await page.locator('#line-items-body input[data-field="cost"]').first().fill('100');
+  await page.locator('#line-items-body input[data-field="sell"]').first().fill('150');
+
+  await expect(page.locator('#sum-sell')).toHaveText('$300.00');
+  await expect(page.locator('#sum-gp')).toHaveText('$100.00');
+  await expect(page.locator('#sum-gp-pct')).toHaveText('33.3%');
+});
+
+test('updates a quote status from the saved quotes list', async ({ page }) => {
+  const initialQuotes = [
+    {
+      id: 201,
+      business_name: 'Status Co',
+      customer: 'Jordan',
+      rep: 'Will',
+      quote_number: 'SQ-00000111',
+      status: 'pending',
+      quote_date: '2026-06-10',
+      freight: 0,
+      freight_in_gp: false,
+      sell_price: 100,
+      gp_percent: 20,
+      line_items: '[]',
+      followups: '[]',
+      created_at: '2026-06-10T00:00:00Z',
+    },
+  ];
+  await mockQuotesApi(page, { quotes: initialQuotes });
+
+  await page.goto('/');
+  await page.locator('button.tab', { hasText: 'Saved quotes' }).click();
+  await page.locator('table.quotes-table tbody tr', { hasText: 'Status Co' }).locator('button', { hasText: 'Status' }).click();
+  await page.locator('#status-dialog-select').selectOption('won');
+  await page.locator('#status-confirm').click();
+
+  await expect(page.locator('#toast')).toContainText('Status updated to won');
+});

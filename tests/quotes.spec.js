@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 
 const products = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'qis_products.json'), 'utf8'));
+const appPath = 'file://' + path.join(__dirname, '..', 'index.html');
 
 function mockQuotesApi(page, state = { quotes: [] }) {
   const quotes = Array.isArray(state) ? state : state.quotes;
@@ -68,7 +69,7 @@ test('saves a quote and shows it in the saved quotes list', async ({ page }) => 
   const state = { quotes: [] };
   await mockQuotesApi(page, state);
 
-  await page.goto('/');
+  await page.goto(appPath);
   await page.locator('#business-name').fill('Acme Packaging');
   await page.locator('#customer').fill('Sam Patel');
   await page.locator('#rep').selectOption('Jack');
@@ -88,6 +89,64 @@ test('saves a quote and shows it in the saved quotes list', async ({ page }) => 
   await page.locator('button.tab', { hasText: 'Saved quotes' }).click();
   await expect(page.locator('table.quotes-table')).toContainText('Acme Packaging');
   expect(state.quotes.length).toBe(1);
+});
+
+test('persists internal notes when saving and editing a quote', async ({ page }) => {
+  const state = { quotes: [] };
+  await mockQuotesApi(page, state);
+
+  await page.goto(appPath);
+  await page.locator('#business-name').fill('Internal Notes Co');
+  await page.locator('#customer').fill('Morgan');
+  await page.locator('#rep').selectOption('Jack');
+  await page.locator('#status').selectOption('pending');
+  await page.locator('#quote-number').fill('SQ-00000002');
+  await page.locator('#internal-notes').fill('This quote needs finance approval');
+
+  await page.locator('#line-items-body input[data-field="sku"]').first().fill('TESTSKU');
+  await page.locator('#line-items-body input[data-field="desc"]').first().fill('Test carton');
+  await page.locator('#line-items-body input[data-field="qty"]').first().fill('2');
+  await page.locator('#line-items-body input[data-field="cost"]').first().fill('100');
+  await page.locator('#line-items-body input[data-field="sell"]').first().fill('150');
+
+  await page.locator('#save-btn').click();
+  await expect(page.locator('#toast')).toContainText('Quote saved successfully');
+
+  await page.locator('button.tab', { hasText: 'Saved quotes' }).click();
+  await page.locator('table.quotes-table tbody tr', { hasText: 'Internal Notes Co' }).locator('button', { hasText: 'Edit' }).click();
+
+  await expect(page.locator('#internal-notes')).toHaveValue('This quote needs finance approval');
+});
+
+test('flags pending quotes with past follow-up dates and shows overdue tab badge', async ({ page }) => {
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const dateString = yesterday.toISOString().substring(0,10);
+  const initialQuotes = [
+    {
+      id: 401,
+      business_name: 'Overdue Co',
+      customer: 'Alex',
+      rep: 'Jack',
+      quote_number: 'SQ-00000222',
+      status: 'pending',
+      quote_date: '2026-06-10',
+      freight: 0,
+      freight_in_gp: false,
+      sell_price: 200,
+      gp_percent: 25,
+      line_items: '[]',
+      followups: JSON.stringify([{id:1,date:dateString,note:'Follow-up overdue'}]),
+      created_at: '2026-06-10T00:00:00Z',
+    },
+  ];
+  await mockQuotesApi(page, { quotes: initialQuotes });
+
+  await page.goto(appPath);
+  await page.locator('button.tab', { hasText: 'Saved quotes' }).click();
+
+  await expect(page.locator('button#tab-button-quotes')).toHaveText('Saved quotes (1)');
+  await expect(page.locator('table.quotes-table tbody tr', { hasText: 'Overdue Co' }).locator('span.overdue-dot')).toBeVisible();
 });
 
 test('shows reporting chart for quote statuses', async ({ page }) => {
@@ -170,7 +229,7 @@ test('supports product search auto-fill for line items', async ({ page }) => {
 test('calculates GP and totals correctly for line items', async ({ page }) => {
   await mockQuotesApi(page);
 
-  await page.goto('/');
+  await page.goto(appPath);
   await page.locator('#line-items-body input[data-field="qty"]').first().fill('2');
   await page.locator('#line-items-body input[data-field="cost"]').first().fill('100');
   await page.locator('#line-items-body input[data-field="sell"]').first().fill('150');

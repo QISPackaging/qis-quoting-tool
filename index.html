@@ -100,6 +100,7 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
 .status-pill.won{background:#EAF3DE;color:#27500A}
 .status-pill.lost{background:#FCEBEB;color:#791F1F}
 .status-pill.withdrawn{background:#f5f5f3;color:#444}
+.overdue-dot{display:inline-block;width:8px;height:8px;margin-left:6px;border-radius:50%;background:#F59E0B;vertical-align:middle}
 .row-action-btn{font-size:11px;font-weight:500;padding:3px 10px;border-radius:6px;cursor:pointer;border:1px solid #e0e0e0;background:#f5f5f3;color:#1a1a1a;white-space:nowrap;margin-right:4px}
 .row-action-btn:hover{background:#eee}
 .row-action-btn.status-btn{background:#E6F1FB;border-color:#B3D4F5;color:#0C447C}
@@ -188,7 +189,7 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
 <h1 class="no-print">QIS GP Calculator</h1>
 <div class="tabs no-print">
   <button class="tab active" onclick="showTab('calculator',this)">Calculator</button>
-  <button class="tab" onclick="showTab('quotes',this)">Saved quotes</button>
+  <button id="tab-button-quotes" class="tab" onclick="showTab('quotes',this)">Saved quotes</button>
   <button class="tab" onclick="showTab('reporting',this)">Reporting</button>
 </div>
 
@@ -417,6 +418,7 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
     <div class="field"><label for="fu-note">Note</label><input type="text" id="fu-note" placeholder="e.g. Left voicemail, following up Friday" onkeydown="if(event.key==='Enter'){event.preventDefault();addFollowup();}"></div>
     <div class="field"><label>&nbsp;</label><button class="add-btn" onclick="addFollowup()">Add</button></div>
   </div>
+  <div class="field" style="margin-top:12px"><label for="internal-notes">Internal notes</label><textarea id="internal-notes" placeholder="Enter internal notes for this quote"></textarea></div>
 </div>
 
 <div class="action-row no-print">
@@ -505,6 +507,20 @@ function todayISO(){
   const m=String(d.getMonth()+1).padStart(2,'0');
   const day=String(d.getDate()).padStart(2,'0');
   return y+'-'+m+'-'+day;
+}
+
+function parseFollowups(q){
+  try{return JSON.parse(q.followups||'[]');}catch(e){return[];}
+}
+function hasOverdueFollowup(q){
+  if((q.status||'')!=='pending')return false;
+  const today=todayISO();
+  return parseFollowups(q).some(f=>f.date&&f.date<today);
+}
+function updateSavedQuotesTabLabel(count){
+  const btn=document.getElementById('tab-button-quotes');
+  if(!btn) return;
+  btn.textContent=count>0?`Saved quotes (${count})`:'Saved quotes';
 }
 
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
@@ -1194,7 +1210,7 @@ function resetForm(){
   lineItems=[];followups=[];sliderDragging=false;_savedOnce=false;_editingId=null;
   const clearIds=[
     'business-name','customer','phone','email','quote-number',
-    'lost-notes','competitor','fu-note','po-number'
+    'lost-notes','competitor','fu-note','po-number','internal-notes'
   ];
   clearIds.forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   const r=localStorage.getItem('qis_last_rep');
@@ -1257,6 +1273,7 @@ function loadQuoteIntoForm(q,editMode=false){
   document.getElementById('customer').value=q.customer||'';
   document.getElementById('phone').value=q.phone||'';
   document.getElementById('email').value=q.email||'';
+  document.getElementById('internal-notes').value=q.notes||'';
   // FIX H3: edit mode restores the quote's saved rep; duplicate uses localStorage
   document.getElementById('rep').value=editMode?(q.rep||r||''):(r||q.rep||'');
   // Edit mode: keep quote number. Duplicate mode: blank it so rep enters a new one
@@ -1382,6 +1399,7 @@ async function saveQuote(){
     competitor:document.getElementById('competitor').value||null,
     competitor_price:competitorPrice,
     lost_notes:document.getElementById('lost-notes').value||null,
+    notes:document.getElementById('internal-notes').value||null,
     counter_made:document.getElementById('counter-made').value,
     counter_price:counterPrice,counter_gp:counterGpNum,
     lost_order_value:status==='lost'?parseFloat(tS.toFixed(2)):null,
@@ -1443,6 +1461,7 @@ let reportingChart=null;
 let _editingId=null; // ID of quote currently being edited (null = new quote)
 
 async function loadQuotes(){
+  updateSavedQuotesTabLabel(0);
   const container=document.getElementById('quotes-container');
   container.innerHTML='<div class="empty-state">Loading...</div>';
   const fs=document.getElementById('filter-status').value;
@@ -1480,6 +1499,8 @@ async function loadQuotes(){
     });
     thead.appendChild(hrow);table.appendChild(thead);
     const tbody=document.createElement('tbody');
+    const overdueCount=data.filter(hasOverdueFollowup).length;
+    updateSavedQuotesTabLabel(overdueCount);
     data.forEach(q=>{
       const sid=Number(q.id);
       const tr=document.createElement('tr');
@@ -1504,7 +1525,14 @@ async function loadQuotes(){
       const safeStatus=['pending','won','lost','withdrawn'].includes(q.status)?q.status:'pending';
       pill.className='status-pill '+safeStatus;
       pill.textContent=q.status||'';
-      statusTd.appendChild(pill);tr.appendChild(statusTd);
+      statusTd.appendChild(pill);
+      if(hasOverdueFollowup(q)){
+        const dot=document.createElement('span');
+        dot.className='overdue-dot';
+        dot.setAttribute('aria-label','Overdue follow-up');
+        statusTd.appendChild(dot);
+      }
+      tr.appendChild(statusTd);
       // Action buttons
       const actionTd=document.createElement('td');actionTd.style.whiteSpace='nowrap';
       [['edit','Edit','edit-btn'],['duplicate','Duplicate',''],['status','Status','status-btn']].forEach(([action,label,extra])=>{

@@ -118,6 +118,36 @@ test('persists internal notes when saving and editing a quote', async ({ page })
   await expect(page.locator('#internal-notes')).toHaveValue('This quote needs finance approval');
 });
 
+test('saved quotes table fits within the page width without horizontal scrolling', async ({ page }) => {
+  const initialQuotes = [
+    {
+      id: 501,
+      business_name: 'Wide Table Co',
+      customer: 'A long contact name for layout testing',
+      rep: 'Jack',
+      quote_number: 'SQ-00000333',
+      status: 'pending',
+      quote_date: '2026-06-10',
+      freight: 0,
+      freight_in_gp: false,
+      sell_price: 200,
+      gp_percent: 40,
+      line_items: '[]',
+      followups: '[]',
+      created_at: '2026-06-10T00:00:00Z',
+    },
+  ];
+  await mockQuotesApi(page, { quotes: initialQuotes });
+
+  await page.goto(appPath);
+  await page.locator('button.tab', { hasText: 'Saved quotes' }).click();
+  const fits = await page.locator('.quotes-table').evaluate(table => {
+    const wrapper = table.parentElement;
+    return wrapper.scrollWidth <= wrapper.clientWidth;
+  });
+  expect(fits).toBe(true);
+});
+
 test('flags pending quotes with past follow-up dates and shows overdue tab badge', async ({ page }) => {
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
@@ -136,7 +166,7 @@ test('flags pending quotes with past follow-up dates and shows overdue tab badge
       sell_price: 200,
       gp_percent: 25,
       line_items: '[]',
-      followups: JSON.stringify([{id:1,date:dateString,note:'Follow-up overdue'}]),
+      followups: [{id:1,date:dateString,note:'Follow-up overdue'}],
       created_at: '2026-06-10T00:00:00Z',
     },
   ];

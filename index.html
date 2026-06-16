@@ -95,7 +95,7 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
 .quotes-table th{text-align:left;padding:5px 6px;font-size:11px;font-weight:500;color:#888;border-bottom:1px solid #e8e8e8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .quotes-table td{padding:5px 6px;border-bottom:1px solid #e8e8e8;color:#1a1a1a;vertical-align:middle;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .quotes-table tr:hover td{background:#f5f5f3}
-.quotes-table th:nth-child(10),.quotes-table td:nth-child(10){width:140px;white-space:nowrap;text-overflow:clip;overflow:visible}
+.quotes-table th:nth-child(10),.quotes-table td:nth-child(10){width:190px;white-space:nowrap;text-overflow:clip;overflow:visible}
 .status-pill.pending{background:#E6F1FB;color:#0C447C}
 .status-pill.won{background:#EAF3DE;color:#27500A}
 .status-pill.lost{background:#FCEBEB;color:#791F1F}
@@ -107,6 +107,8 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
 .row-action-btn.status-btn:hover{background:#cce0f7}
 .row-action-btn.edit-btn{background:#EAF3DE;border-color:#C0DD97;color:#27500A}
 .row-action-btn.edit-btn:hover{background:#d8eccc}
+.row-action-btn.delete-btn{background:#FCEBEB;border-color:#F7C1C1;color:#791F1F}
+.row-action-btn.delete-btn:hover{background:#f7c8c8}
 .filters{display:flex;gap:8px;margin-bottom:1rem;flex-wrap:wrap}
 .filters select,.filters input[type="text"]{font-size:13px;padding:6px 10px;height:32px;border:1px solid #e0e0e0;border-radius:8px;background:#fff;outline:none}
 .empty-state{text-align:center;padding:2rem;color:#888;font-size:13px}
@@ -197,7 +199,7 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
 <div class="overlay no-print" id="remove-overlay" role="dialog" aria-modal="true" aria-labelledby="remove-title">
   <div class="dialog-box">
     <h3 id="remove-title">Remove line item?</h3>
-    <p>This will delete the line and cannot be undone.</p>
+    <p id="remove-desc">This will delete the line and cannot be undone.</p>
     <div class="dialog-btns">
       <button class="btn-cancel" id="remove-cancel">Cancel</button>
       <button class="btn-confirm" id="remove-confirm">Remove</button>
@@ -577,6 +579,9 @@ function addLine(){
 }
 
 async function removeLine(id){
+  document.getElementById('remove-title').textContent='Remove line item?';
+  document.getElementById('remove-desc').textContent='This will delete the line and cannot be undone.';
+  document.getElementById('remove-confirm').textContent='Remove';
   const confirmed=await openDialog('remove-overlay','remove-confirm','remove-cancel');
   if(!confirmed)return;
   lineItems=lineItems.filter(l=>l.id!==id);
@@ -1540,7 +1545,7 @@ async function loadQuotes(){
       tr.appendChild(statusTd);
       // Action buttons
       const actionTd=document.createElement('td');actionTd.style.whiteSpace='nowrap';
-      [['edit','Edit','edit-btn'],['duplicate','Duplicate',''],['status','Status','status-btn']].forEach(([action,label,extra])=>{
+      [['edit','Edit','edit-btn'],['duplicate','Duplicate',''],['status','Status','status-btn'],['delete','Delete','delete-btn']].forEach(([action,label,extra])=>{
         const btn=document.createElement('button');
         btn.className='row-action-btn'+(extra?' '+extra:'');
         btn.textContent=label;
@@ -1571,6 +1576,7 @@ async function loadQuotes(){
       if(btn.dataset.action==='edit') editQuote(id);
       if(btn.dataset.action==='duplicate') duplicateQuote(id);
       if(btn.dataset.action==='status') quickStatusUpdate(id,btn.dataset.status,btn.dataset.biz);
+      if(btn.dataset.action==='delete') deleteQuote(id);
     };
     container.addEventListener('click',container._clickHandler);
   } catch(e){
@@ -1813,6 +1819,33 @@ function editQuote(id){
   _editingId=id;
   loadQuoteIntoForm(q,true); // true = editing mode, keep quote number
   showToast('Editing quote — save will update the existing record','success');
+}
+
+async function deleteQuote(id){
+  const q=_cachedQuotes.find(x=>x.id===id);
+  if(!q){showToast('Quote not found — reload the list and try again','error');return;}
+  document.getElementById('remove-title').textContent='Delete quote?';
+  document.getElementById('remove-desc').textContent='Are you sure you want to delete this quote? This cannot be undone.';
+  document.getElementById('remove-confirm').textContent='Delete';
+  const confirmed=await openDialog('remove-overlay','remove-confirm','remove-cancel');
+  if(!confirmed)return;
+  try{
+    const delCtrl=new AbortController();
+    const delTimeout=setTimeout(()=>delCtrl.abort(),15000);
+    const res=await fetch(SURL+'/rest/v1/quotes?id=eq.'+id,{method:'DELETE',headers:H,signal:delCtrl.signal});
+    clearTimeout(delTimeout);
+    if(res.ok){
+      showToast('Quote deleted','success');
+      loadQuotes();
+    } else {
+      const txt=await res.text();
+      showToast('Error deleting quote — '+res.status,'error');
+      console.error(res.status,txt);
+    }
+  } catch(e){
+    const msg=e.name==='AbortError'?'Delete request timed out — try again':'Connection error: '+e.message;
+    showToast(msg,'error');
+  }
 }
 
 // ─── Quick status update ──────────────────────────────────────────────────────

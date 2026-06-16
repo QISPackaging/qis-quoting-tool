@@ -47,6 +47,17 @@ function mockQuotesApi(page, state = { quotes: [] }) {
       });
     }
 
+    if (method === 'DELETE') {
+      const id = Number(url.searchParams.get('id')?.replace('eq.', ''));
+      const index = quotes.findIndex(item => item.id === id);
+      if (index >= 0) quotes.splice(index, 1);
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([]),
+      });
+    }
+
     return route.fulfill({
       status: 404,
       contentType: 'application/json',
@@ -215,6 +226,42 @@ test('shows reporting chart for quote statuses', async ({ page }) => {
   await expect(page.locator('#reporting-metrics')).toContainText('Quotes by rep');
   await expect(page.locator('#reporting-metrics')).toContainText('Jack');
   await expect(page.locator('#reporting-metrics')).toContainText('2');
+});
+
+test('deletes a quote after confirmation from the saved quotes list', async ({ page }) => {
+  const state = {
+    quotes: [
+      {
+        id: 201,
+        business_name: 'Delete Co',
+        customer: 'Jordan',
+        rep: 'Jack',
+        quote_number: 'SQ-00000444',
+        status: 'pending',
+        quote_date: '2026-06-10',
+        freight: 0,
+        freight_in_gp: false,
+        sell_price: 250,
+        gp_percent: 25,
+        line_items: '[]',
+        followups: '[]',
+        created_at: '2026-06-10T00:00:00Z',
+      },
+    ],
+  };
+  await mockQuotesApi(page, state);
+
+  await page.goto(appPath);
+  await page.locator('button.tab', { hasText: 'Saved quotes' }).click();
+  await page.locator('table.quotes-table tbody tr', { hasText: 'Delete Co' }).locator('button', { hasText: 'Delete' }).click();
+
+  await expect(page.locator('#remove-overlay')).toHaveClass(/show/);
+  await expect(page.locator('#remove-overlay')).toContainText('Are you sure you want to delete this quote? This cannot be undone.');
+  await page.locator('#remove-confirm').click();
+
+  await expect(page.locator('#toast')).toContainText('Quote deleted');
+  await expect(page.locator('#quotes-container')).toContainText('No quotes found');
+  expect(state.quotes.length).toBe(0);
 });
 
 test('edits and duplicates an existing quote', async ({ page }) => {

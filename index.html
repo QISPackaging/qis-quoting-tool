@@ -1640,6 +1640,8 @@ function renderReportingMetrics(data){
   const closedCount=data.filter(q=>q.status==='won'||q.status==='lost').length;
   const wonCount=data.filter(q=>q.status==='won').length;
   const lostCount=data.filter(q=>q.status==='lost').length;
+  const wonValue=data.filter(q=>q.status==='won').reduce((sum,q)=>sum+(parseFloat(q.sell_price)||0),0);
+  const lostValue=data.filter(q=>q.status==='lost').reduce((sum,q)=>sum+(parseFloat(q.sell_price)||0),0);
   const wonGP=data.filter(q=>q.status==='won'&&q.gp_percent!=null).reduce((sum,q)=>sum+(q.gp_percent||0),0);
   const lostGP=data.filter(q=>q.status==='lost'&&q.gp_percent!=null).reduce((sum,q)=>sum+(q.gp_percent||0),0);
   const wonAvg=wonCount?wonGP/wonCount:NaN;
@@ -1654,6 +1656,14 @@ function renderReportingMetrics(data){
   });
 
   const sections=[
+    {
+      title:'Total value won',
+      value: fmtCurrency(wonValue)
+    },
+    {
+      title:'Total value lost',
+      value: fmtCurrency(lostValue)
+    },
     {
       title:'Win rate',
       value: closedCount ? (wonCount/closedCount*100).toFixed(1)+'%' : 'N/A'

@@ -181,11 +181,11 @@ test('flags pending quotes with past follow-up dates and shows overdue tab badge
 
 test('shows reporting chart for quote statuses', async ({ page }) => {
   const initialQuotes = [
-    { id: 301, status: 'won', rep: 'Jack', gp_percent: 65 },
-    { id: 302, status: 'lost', rep: 'Jack', gp_percent: 48 },
-    { id: 303, status: 'pending', rep: 'Sam', gp_percent: 20 },
-    { id: 304, status: 'withdrawn', rep: 'Liam', gp_percent: 0 },
-    { id: 305, status: 'won', rep: 'Ava', gp_percent: 70 }
+    { id: 301, status: 'won', rep: 'Jack', gp_percent: 65, sell_price: 1200 },
+    { id: 302, status: 'lost', rep: 'Jack', gp_percent: 48, sell_price: 800 },
+    { id: 303, status: 'pending', rep: 'Sam', gp_percent: 20, sell_price: 300 },
+    { id: 304, status: 'withdrawn', rep: 'Liam', gp_percent: 0, sell_price: 150 },
+    { id: 305, status: 'won', rep: 'Ava', gp_percent: 70, sell_price: 1000 }
   ];
   await mockQuotesApi(page, { quotes: initialQuotes });
 
@@ -202,6 +202,10 @@ test('shows reporting chart for quote statuses', async ({ page }) => {
   await expect(page.locator('#reporting-summary')).toContainText('Withdrawn');
   await expect(page.locator('#reporting-summary')).toContainText('1');
   await expect(page.locator('#reporting-chart')).toBeVisible();
+  await expect(page.locator('#reporting-metrics')).toContainText('Total value won');
+  await expect(page.locator('#reporting-metrics')).toContainText('$2,200.00');
+  await expect(page.locator('#reporting-metrics')).toContainText('Total value lost');
+  await expect(page.locator('#reporting-metrics')).toContainText('$800.00');
   await expect(page.locator('#reporting-metrics')).toContainText('Win rate');
   await expect(page.locator('#reporting-metrics')).toContainText('66.7%');
   await expect(page.locator('#reporting-metrics')).toContainText('Avg GP% on won quotes');

@@ -181,11 +181,11 @@ test('flags pending quotes with past follow-up dates and shows overdue tab badge
 
 test('shows reporting chart for quote statuses', async ({ page }) => {
   const initialQuotes = [
-    { id: 301, status: 'won' },
-    { id: 302, status: 'lost' },
-    { id: 303, status: 'pending' },
-    { id: 304, status: 'withdrawn' },
-    { id: 305, status: 'won' }
+    { id: 301, status: 'won', rep: 'Jack', gp_percent: 65 },
+    { id: 302, status: 'lost', rep: 'Jack', gp_percent: 48 },
+    { id: 303, status: 'pending', rep: 'Sam', gp_percent: 20 },
+    { id: 304, status: 'withdrawn', rep: 'Liam', gp_percent: 0 },
+    { id: 305, status: 'won', rep: 'Ava', gp_percent: 70 }
   ];
   await mockQuotesApi(page, { quotes: initialQuotes });
 
@@ -202,6 +202,15 @@ test('shows reporting chart for quote statuses', async ({ page }) => {
   await expect(page.locator('#reporting-summary')).toContainText('Withdrawn');
   await expect(page.locator('#reporting-summary')).toContainText('1');
   await expect(page.locator('#reporting-chart')).toBeVisible();
+  await expect(page.locator('#reporting-metrics')).toContainText('Win rate');
+  await expect(page.locator('#reporting-metrics')).toContainText('66.7%');
+  await expect(page.locator('#reporting-metrics')).toContainText('Avg GP% on won quotes');
+  await expect(page.locator('#reporting-metrics')).toContainText('67.5%');
+  await expect(page.locator('#reporting-metrics')).toContainText('Avg GP% on lost quotes');
+  await expect(page.locator('#reporting-metrics')).toContainText('48.0%');
+  await expect(page.locator('#reporting-metrics')).toContainText('Quotes by rep');
+  await expect(page.locator('#reporting-metrics')).toContainText('Jack');
+  await expect(page.locator('#reporting-metrics')).toContainText('2');
 });
 
 test('edits and duplicates an existing quote', async ({ page }) => {
@@ -225,7 +234,7 @@ test('edits and duplicates an existing quote', async ({ page }) => {
   ];
   await mockQuotesApi(page, { quotes: initialQuotes });
 
-  await page.goto('/');
+  await page.goto(appPath);
   await page.locator('button.tab', { hasText: 'Saved quotes' }).click();
   await page.locator('table.quotes-table tbody tr', { hasText: 'Existing Co' }).locator('button', { hasText: 'Edit' }).click();
 
@@ -290,7 +299,7 @@ test('updates a quote status from the saved quotes list', async ({ page }) => {
   ];
   await mockQuotesApi(page, { quotes: initialQuotes });
 
-  await page.goto('/');
+  await page.goto(appPath);
   await page.locator('button.tab', { hasText: 'Saved quotes' }).click();
   await page.locator('table.quotes-table tbody tr', { hasText: 'Status Co' }).locator('button', { hasText: 'Status' }).click();
   await page.locator('#status-dialog-select').selectOption('won');

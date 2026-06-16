@@ -91,31 +91,17 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
 .followup-entry .fu-remove{background:none;border:none;cursor:pointer;color:#bbb;font-size:16px;line-height:1;padding:0;flex-shrink:0}
 .followup-entry .fu-remove:hover,.followup-entry .fu-remove:focus{outline:none;color:#E24B4A}
 .followup-add{display:grid;grid-template-columns:140px 1fr auto;gap:8px;align-items:end;margin-top:8px}
-.quotes-table{width:100%;border-collapse:collapse;font-size:13px}
-.quotes-table th{text-align:left;padding:8px 10px;font-size:11px;font-weight:500;color:#888;border-bottom:1px solid #e8e8e8;white-space:nowrap}
-.quotes-table td{padding:8px 10px;border-bottom:1px solid #e8e8e8;color:#1a1a1a;vertical-align:middle}
+.quotes-table{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed}
+.quotes-table th{text-align:left;padding:5px 6px;font-size:11px;font-weight:500;color:#888;border-bottom:1px solid #e8e8e8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.quotes-table td{padding:5px 6px;border-bottom:1px solid #e8e8e8;color:#1a1a1a;vertical-align:middle;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .quotes-table tr:hover td{background:#f5f5f3}
-.status-pill{display:inline-block;font-size:11px;font-weight:500;padding:2px 8px;border-radius:20px}
-.quotes-table{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed}
-.quotes-table th{text-align:left;padding:6px 8px;font-size:11px;font-weight:500;color:#888;border-bottom:1px solid #e0e0e8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.quotes-table td{padding:6px 8px;border-bottom:1px solid #e0e0e8;color:#1a1a1a;vertical-align:middle;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.quotes-table tr:hover td{background:#f5f5f3}
-.quotes-table th:nth-child(1),.quotes-table td:nth-child(1){width:10%}
-.quotes-table th:nth-child(2),.quotes-table td:nth-child(2){width:8%}
-.quotes-table th:nth-child(3),.quotes-table td:nth-child(3){width:20%}
-.quotes-table th:nth-child(4),.quotes-table td:nth-child(4){width:14%}
-.quotes-table th:nth-child(5),.quotes-table td:nth-child(5){width:10%}
-.quotes-table th:nth-child(6),.quotes-table td:nth-child(6){width:10%}
-.quotes-table th:nth-child(7),.quotes-table td:nth-child(7){width:8%}
-.quotes-table th:nth-child(8),.quotes-table td:nth-child(8){width:7%}
-.quotes-table th:nth-child(9),.quotes-table td:nth-child(9){width:7%}
-.quotes-table th:nth-child(10),.quotes-table td:nth-child(10){width:6%}
+.quotes-table th:nth-child(10),.quotes-table td:nth-child(10){width:140px;white-space:nowrap;text-overflow:clip;overflow:visible}
 .status-pill.pending{background:#E6F1FB;color:#0C447C}
 .status-pill.won{background:#EAF3DE;color:#27500A}
 .status-pill.lost{background:#FCEBEB;color:#791F1F}
 .status-pill.withdrawn{background:#f5f5f3;color:#444}
 .overdue-dot{display:inline-block;width:8px;height:8px;margin-left:6px;border-radius:50%;background:#F59E0B;vertical-align:middle}
-.row-action-btn{font-size:10px;font-weight:500;padding:2px 6px;border-radius:6px;cursor:pointer;border:1px solid #e0e0e0;background:#f5f5f3;color:#1a1a1a;white-space:nowrap;margin-right:4px}
+.row-action-btn{font-size:10px;font-weight:500;padding:2px 5px;border-radius:6px;cursor:pointer;border:1px solid #e0e0e0;background:#f5f5f3;color:#1a1a1a;white-space:nowrap;margin-right:2px}
 .row-action-btn:hover{background:#eee}
 .row-action-btn.status-btn{background:#E6F1FB;border-color:#B3D4F5;color:#0C447C}
 .row-action-btn.status-btn:hover{background:#cce0f7}
@@ -1646,12 +1632,82 @@ function renderReportingChart(counts){
   reportingChart=new Chart(canvas,{type:'pie',data:{labels:['Won','Lost','Pending','Withdrawn'],datasets:[{data,backgroundColor:['#639922','#E24B4A','#E6F1FB','#f5f5f3'],borderColor:['#fff','#fff','#fff','#fff'],borderWidth:1}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{boxWidth:12,padding:16}}}}});
 }
 
+function renderReportingMetrics(data){
+  const metrics=document.getElementById('reporting-metrics');
+  if(!metrics) return;
+  metrics.innerHTML='';
+
+  const closedCount=data.filter(q=>q.status==='won'||q.status==='lost').length;
+  const wonCount=data.filter(q=>q.status==='won').length;
+  const lostCount=data.filter(q=>q.status==='lost').length;
+  const wonGP=data.filter(q=>q.status==='won'&&q.gp_percent!=null).reduce((sum,q)=>sum+(q.gp_percent||0),0);
+  const lostGP=data.filter(q=>q.status==='lost'&&q.gp_percent!=null).reduce((sum,q)=>sum+(q.gp_percent||0),0);
+  const wonAvg=wonCount?wonGP/wonCount:NaN;
+  const lostAvg=lostCount?lostGP/lostCount:NaN;
+
+  const repCounts={};
+  data.forEach(q=>{
+    const rep=q.rep && String(q.rep).trim();
+    if(rep){
+      repCounts[rep]=(repCounts[rep]||0)+1;
+    }
+  });
+
+  const sections=[
+    {
+      title:'Win rate',
+      value: closedCount ? (wonCount/closedCount*100).toFixed(1)+'%' : 'N/A'
+    },
+    {
+      title:'Avg GP% on won quotes',
+      value: wonCount ? wonAvg.toFixed(1)+'%' : 'N/A'
+    },
+    {
+      title:'Avg GP% on lost quotes',
+      value: lostCount ? lostAvg.toFixed(1)+'%' : 'N/A'
+    }
+  ];
+
+  sections.forEach(section=>{
+    const row=document.createElement('div');
+    row.className='reporting-metric-row';
+    row.style.cssText='padding:8px 0;font-size:13px;border-bottom:1px solid #f0f0f0;color:#1a1a1a';
+    if(section.title==='Avg GP% on lost quotes') row.style.borderBottom='none';
+    row.textContent=section.title+': '+section.value;
+    metrics.appendChild(row);
+  });
+
+  const repSection=document.createElement('div');
+  repSection.className='reporting-reps';
+  repSection.style.cssText='margin-top:1rem';
+  const repTitle=document.createElement('div');
+  repTitle.className='section-title';
+  repTitle.textContent='Quotes by rep';
+  repSection.appendChild(repTitle);
+  const repList=document.createElement('div');
+  repList.style.cssText='display:flex;flex-direction:column;gap:6px';
+  const repEntries=Object.entries(repCounts).sort((a,b)=>b[1]-a[1]);
+  repEntries.forEach(([rep,count])=>{
+    const row=document.createElement('div');
+    row.style.cssText='display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:#f5f5f3;border:1px solid #e8e8e8;border-radius:8px;font-size:13px';
+    const repName=document.createElement('span');
+    repName.textContent=rep;
+    const repCount=document.createElement('strong');
+    repCount.textContent=String(count);
+    row.appendChild(repName);
+    row.appendChild(repCount);
+    repList.appendChild(row);
+  });
+  repSection.appendChild(repList);
+  metrics.appendChild(repSection);
+}
+
 async function loadReporting(){
   const container=document.getElementById('reporting-content');
   if(!container) return;
   container.innerHTML='<div class="empty-state">Loading report...</div>';
   try{
-    const res=await fetch(SURL+'/rest/v1/quotes?select=status',{headers:H});
+    const res=await fetch(SURL+'/rest/v1/quotes?select=status,rep,gp_percent',{headers:H});
     if(!res.ok){container.innerHTML='<div class="empty-state">Error loading report ('+res.status+')</div>';return;}
     const data=await res.json();
     const counts=getQuoteStatusCounts(data);
@@ -1674,9 +1730,14 @@ async function loadReporting(){
     canvas.setAttribute('aria-label','Quotes status distribution');
     chartWrapper.appendChild(canvas);
     reportSection.appendChild(chartWrapper);
+    const metrics=document.createElement('div');
+    metrics.id='reporting-metrics';
+    metrics.style.cssText='margin-top:1rem';
+    reportSection.appendChild(metrics);
     container.appendChild(reportSection);
     renderReportingSummary(counts);
     renderReportingChart(counts);
+    renderReportingMetrics(data);
   } catch(e){
     const msg=e.name==='AbortError'?'Request timed out — try again':escHtml(e.message);
     container.innerHTML='<div class="empty-state">Error: '+msg+'</div>';

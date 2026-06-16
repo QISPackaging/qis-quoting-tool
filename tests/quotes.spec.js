@@ -90,6 +90,31 @@ test('saves a quote and shows it in the saved quotes list', async ({ page }) => 
   expect(state.quotes.length).toBe(1);
 });
 
+test('shows reporting chart for quote statuses', async ({ page }) => {
+  const initialQuotes = [
+    { id: 301, status: 'won' },
+    { id: 302, status: 'lost' },
+    { id: 303, status: 'pending' },
+    { id: 304, status: 'withdrawn' },
+    { id: 305, status: 'won' }
+  ];
+  await mockQuotesApi(page, { quotes: initialQuotes });
+
+  const appPath = 'file://' + path.join(__dirname, '..', 'index.html');
+  await page.goto(appPath);
+  await page.locator('button:has-text("Reporting")').click();
+
+  await expect(page.locator('#reporting-summary')).toContainText('Won');
+  await expect(page.locator('#reporting-summary')).toContainText('2');
+  await expect(page.locator('#reporting-summary')).toContainText('Lost');
+  await expect(page.locator('#reporting-summary')).toContainText('1');
+  await expect(page.locator('#reporting-summary')).toContainText('Pending');
+  await expect(page.locator('#reporting-summary')).toContainText('1');
+  await expect(page.locator('#reporting-summary')).toContainText('Withdrawn');
+  await expect(page.locator('#reporting-summary')).toContainText('1');
+  await expect(page.locator('#reporting-chart')).toBeVisible();
+});
+
 test('edits and duplicates an existing quote', async ({ page }) => {
   const initialQuotes = [
     {

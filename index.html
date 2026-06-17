@@ -191,6 +191,7 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
 <h1 class="no-print">QIS GP Calculator</h1>
 <div class="tabs no-print">
   <button class="tab active" onclick="showTab('calculator',this)">Calculator</button>
+  <button class="tab" onclick="showTab('landed',this)">Landed Cost Calculator</button>
   <button id="tab-button-quotes" class="tab" onclick="showTab('quotes',this)">Saved quotes</button>
   <button class="tab" onclick="showTab('reporting',this)">Reporting</button>
 </div>
@@ -430,6 +431,104 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
 </div>
 </div><!-- end tab-calculator -->
 
+<div id="tab-landed" class="tab-content">
+  <div class="section">
+    <div class="section-title">Shipment details</div>
+    <div class="row3" style="margin-bottom:12px">
+      <div class="field">
+        <label for="landed-ship-mode">Ship mode</label>
+        <select id="landed-ship-mode">
+          <option value="LCL">LCL</option>
+          <option value="20ft FCL">20ft FCL</option>
+          <option value="40ft FCL">40ft FCL</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="landed-origin-port">Origin port</label>
+        <select id="landed-origin-port"></select>
+      </div>
+      <div class="field">
+        <label for="landed-ocean-freight">Ocean freight rate (USD)</label>
+        <input type="number" id="landed-ocean-freight" readonly>
+      </div>
+    </div>
+    <div class="row3" style="margin-bottom:12px">
+      <div class="field">
+        <label for="landed-carrier">Carrier</label>
+        <input type="text" id="landed-carrier" readonly>
+      </div>
+      <div class="field">
+        <label for="landed-exchange-rate">USD to AUD exchange rate</label>
+        <input type="number" id="landed-exchange-rate" min="0.0001" step="0.0001" value="0.65">
+      </div>
+      <div class="field">
+        <label for="landed-tt-deposit-fee">Westpac TT deposit fee</label>
+        <input type="number" id="landed-tt-deposit-fee" value="30" readonly>
+      </div>
+    </div>
+    <div class="row3" style="margin-bottom:12px">
+      <div class="field">
+        <label for="landed-tt-balance-fee">Westpac TT balance fee (AUD)</label>
+        <input type="number" id="landed-tt-balance-fee" min="0" step="0.01" value="0">
+      </div>
+      <div class="field" style="grid-column:span 2">
+        <label>Total freight and destination charges</label>
+        <div class="input-prefix" style="background:#f5f5f3">
+          <span>$</span>
+          <input type="text" id="landed-total-charge" value="$0.00" readonly>
+        </div>
+      </div>
+    </div>
+    <div class="section-title" style="margin-bottom:0.75rem">Optional add-ons</div>
+    <div class="row3">
+      <label class="toggle-outer" for="landed-heavy-lift" style="justify-content:flex-start;gap:12px;align-items:center">
+        <input type="checkbox" id="landed-heavy-lift" style="width:auto">
+        <span>Heavy Lift ($370)</span>
+      </label>
+      <label class="toggle-outer" for="landed-demurrage" style="justify-content:flex-start;gap:12px;align-items:center">
+        <input type="checkbox" id="landed-demurrage" style="width:auto">
+        <span>Demurrage/Terminal ($125)</span>
+      </label>
+      <div class="field">
+        <label for="landed-sideloader-fee">Sideloader fee (AUD)</label>
+        <input type="number" id="landed-sideloader-fee" min="0" step="0.01" value="0">
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Products</div>
+    <div class="line-wrap">
+      <table class="line-table">
+        <thead>
+          <tr>
+            <th style="width:90px">SKU</th>
+            <th style="min-width:180px">Description</th>
+            <th style="width:90px">USD price per bag</th>
+            <th style="width:90px">Qty per carton</th>
+            <th style="width:90px">CBM per carton</th>
+            <th style="width:90px">Cartons ordered</th>
+            <th style="width:95px">AUD price/carton</th>
+            <th style="width:115px">AUD freight & customs/carton</th>
+            <th style="width:110px">AUD landed/carton</th>
+            <th style="width:110px">AUD landed/bag</th>
+            <th style="width:28px" class="no-print"></th>
+          </tr>
+        </thead>
+        <tbody id="landed-product-body"></tbody>
+      </table>
+    </div>
+    <button class="add-btn no-print" id="add-landed-btn" onclick="addLandedProduct()">+ Add product</button>
+    <div class="quote-totals" style="margin-top:1rem">
+      <div class="quote-totals-row"><span>Total CBM</span><span id="landed-total-cbm">0.00</span></div>
+      <div class="quote-totals-row"><span>Total cartons</span><span id="landed-total-cartons">0</span></div>
+    </div>
+    <div class="action-row no-print" style="margin-top:1rem">
+      <button class="save-btn" id="send-to-quote-btn" onclick="sendLandedToQuote()">Send to Quote</button>
+    </div>
+  </div>
+</div>
+
 <div id="tab-quotes" class="tab-content">
   <div class="filters">
     <select id="filter-status" onchange="loadQuotes()">
@@ -468,6 +567,321 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
 // FIX Q8: no more magic numbers scattered through the code
 const GP_RED=30;    // below this: needs approval
 const GP_AMBER=65;  // below this: below target; at or above: on target
+
+const LANDED_RATE_TABLE = {
+  '20ft FCL': {
+    'Colombo': { rate: 1100, carrier: 'OOCL' },
+    'Haiphong': { rate: 825, carrier: 'PIL' },
+    'Ho Chi Minh': { rate: 850, carrier: 'COSCO' },
+    'Jakarta': { rate: 925, carrier: 'OOCL' },
+    'Jiangmen': { rate: 1600, carrier: 'TSL' },
+    'Karachi': { rate: 1100, carrier: 'OOCL' },
+    'Nhava Sheva': { rate: 1175, carrier: 'COSCO' },
+    'Port Kelang': { rate: 850, carrier: 'OOCL' },
+    'Qingdao': { rate: 1650, carrier: 'MSC' },
+    'Semarang': { rate: 925, carrier: 'OOCL' },
+    'Shanghai': { rate: 1550, carrier: 'MSC' },
+    'Shenzhen': { rate: 1550, carrier: 'EMC' },
+    'Surabaya': { rate: 900, carrier: 'OOCL' },
+    'Xiamen': { rate: 1550, carrier: 'ZIM' },
+    'Yantian': { rate: 1550, carrier: 'HMM' },
+    'Ningbo': { rate: 1550, carrier: 'ZIM' },
+  },
+  '40ft FCL': {
+    'Colombo': { rate: 2200, carrier: 'OOCL' },
+    'Haiphong': { rate: 1550, carrier: 'PIL' },
+    'Ho Chi Minh': { rate: 1700, carrier: 'COSCO' },
+    'Jakarta': { rate: 1850, carrier: 'OOCL' },
+    'Jiangmen': { rate: 3200, carrier: 'TSL' },
+    'Karachi': { rate: 2200, carrier: 'OOCL' },
+    'Nhava Sheva': { rate: 2350, carrier: 'COSCO' },
+    'Port Kelang': { rate: 1700, carrier: 'OOCL' },
+    'Qingdao': { rate: 3300, carrier: 'MSC' },
+    'Semarang': { rate: 1850, carrier: 'OOCL' },
+    'Shanghai': { rate: 3100, carrier: 'MSC' },
+    'Shenzhen': { rate: 3100, carrier: 'EMC' },
+    'Surabaya': { rate: 1800, carrier: 'OOCL' },
+    'Xiamen': { rate: 3100, carrier: 'ZIM' },
+    'Yantian': { rate: 3100, carrier: 'HMM' },
+    'Ningbo': { rate: 3100, carrier: 'ZIM' },
+  }
+};
+
+const LANDED_LCL_RATE_TABLE = {
+  'LCL': {
+    'Nhava Sheva': { perCbm: 46, pss: 22, af: 12 },
+    'New Delhi': { perCbm: 89, pss: 27, af: 12 },
+    'Karachi': { perCbm: 70, pss: 14.5, af: 12 },
+    'Port Kelang': { perCbm: 22, pss: 14.5, af: 12 },
+    'Ho Chi Minh': { perCbm: 27, pss: 14.5, af: 12 },
+    'Haiphong': { perCbm: 49, pss: 14.5, af: 12 },
+    'Keelung': { perCbm: 43, pss: 14.5, af: 12 },
+    'Colombo': { perCbm: 58, pss: 14.5, af: 12 },
+    'Shenzhen': { perCbm: 25, pss: 14.5, af: 12 },
+    'Shanghai': { perCbm: 14, pss: 14.5, af: 12 },
+    'Ningbo': { perCbm: 25, pss: 14.5, af: 12 },
+    'Semarang': { perCbm: 51, pss: 10, af: 14.5 },
+    'Xiamen': { perCbm: 25, pss: 10, af: 14.5 },
+    'Jiangmen': { perCbm: 47, pss: 10, af: 14.5 },
+    'Qingdao': { perCbm: 25, pss: 10, af: 14.5 },
+  }
+};
+
+const FCL_DESTINATION_CHARGES = {
+  OOCL: { portService: { '20ft FCL': 680, '40ft FCL': 925 }, docFee: 160 },
+  MSC: { portService: { '20ft FCL': 680, '40ft FCL': 925 }, docFee: 160 },
+  COSCO: { portService: { '20ft FCL': 680, '40ft FCL': 925 }, docFee: 160 },
+  ZIM: { portService: { '20ft FCL': 680, '40ft FCL': 925 }, docFee: 160 },
+  EMC: { portService: { '20ft FCL': 745, '40ft FCL': 1025 }, docFee: 165 },
+  PIL: { portService: { '20ft FCL': 745, '40ft FCL': 1025 }, docFee: 165 },
+  TSL: { portService: { '20ft FCL': 745, '40ft FCL': 1025 }, docFee: 165 },
+  HMM: { portService: { '20ft FCL': 680, '40ft FCL': 925 }, docFee: 160 },
+};
+
+const FCL_COMMON_CHARGES = {
+  deliveryOrder: 50,
+  cargoReporting: 85,
+  edi: 30,
+  customsClearance: 80,
+  quarantineRegistration: 45,
+  cartage: { '20ft FCL': 385, '40ft FCL': 435 },
+  timeSlot: 320,
+  portInfrastructure: 285,
+  tolls: 25,
+};
+
+const LCL_DESTINATION_CHARGES = {
+  perCbm: {
+    portService: 85,
+    terminalHandling: 20,
+    portInfrastructure: 25,
+    deliveryOrder: 55,
+    edi: 35,
+    cargoReporting: 85,
+    customsClearance: 80,
+    quarantineRegistration: 45,
+  }
+};
+
+function fmtCurrency(value){
+  const num=parseFloat(value)||0;
+  return '$'+num.toFixed(2);
+}
+
+function round2(value){
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function parseMoney(val){
+  const parsed=parseFloat(val);
+  return Number.isFinite(parsed)?parsed:0;
+}
+
+function getLandedPortOptions(){
+  return Object.keys(LANDED_RATE_TABLE['20ft FCL']).concat(Object.keys(LANDED_RATE_TABLE['40ft FCL'])).filter((value,index,self)=>self.indexOf(value)===index).sort();
+}
+
+function getLandedRateForModePort(mode,port){
+  return LANDED_RATE_TABLE[mode] && LANDED_RATE_TABLE[mode][port] ? LANDED_RATE_TABLE[mode][port] : null;
+}
+
+function getLandedChargeData(mode,port){
+  const rateData=getLandedRateForModePort(mode,port);
+  if(!rateData) return null;
+  const carrier=rateData.carrier;
+  const carrierCharges=FCL_DESTINATION_CHARGES[carrier] || FCL_DESTINATION_CHARGES.OOCL;
+  const cartage=FCL_COMMON_CHARGES.cartage[mode] || 0;
+  const domesticFuel=cartage * 0.35;
+  const total=
+    carrierCharges.portService[mode] +
+    carrierCharges.docFee +
+    FCL_COMMON_CHARGES.deliveryOrder +
+    FCL_COMMON_CHARGES.cargoReporting +
+    FCL_COMMON_CHARGES.edi +
+    FCL_COMMON_CHARGES.customsClearance +
+    FCL_COMMON_CHARGES.quarantineRegistration +
+    cartage +
+    domesticFuel +
+    FCL_COMMON_CHARGES.timeSlot +
+    FCL_COMMON_CHARGES.portInfrastructure +
+    FCL_COMMON_CHARGES.tolls;
+  return { carrier, rateData, total };
+}
+
+function getLandedLclChargeData(port,totalCbm){
+  const rateData=LANDED_LCL_RATE_TABLE.LCL[port];
+  if(!rateData) return null;
+  const delivery = Math.max(90, 30 * totalCbm);
+  const temporaryTerminal = Math.max(18.5, 5 * totalCbm);
+  const deliveryFuel = delivery * 0.35;
+  const temporaryFuel = temporaryTerminal * 0.35;
+  const total =
+    (LCL_DESTINATION_CHARGES.perCbm.portService * totalCbm) +
+    (LCL_DESTINATION_CHARGES.perCbm.terminalHandling * totalCbm) +
+    (LCL_DESTINATION_CHARGES.perCbm.portInfrastructure * totalCbm) +
+    delivery +
+    deliveryFuel +
+    temporaryTerminal +
+    temporaryFuel +
+    LCL_DESTINATION_CHARGES.perCbm.deliveryOrder +
+    LCL_DESTINATION_CHARGES.perCbm.edi +
+    LCL_DESTINATION_CHARGES.perCbm.cargoReporting +
+    LCL_DESTINATION_CHARGES.perCbm.customsClearance +
+    LCL_DESTINATION_CHARGES.perCbm.quarantineRegistration;
+  return { rateData, total };
+}
+
+function updateLandedCalculator(){
+  const mode=document.getElementById('landed-ship-mode').value;
+  const port=document.getElementById('landed-origin-port').value;
+  const exchangeRate=parseMoney(document.getElementById('landed-exchange-rate').value) || 1;
+  const ttBalanceFee=parseMoney(document.getElementById('landed-tt-balance-fee').value);
+  const heavyLift=document.getElementById('landed-heavy-lift').checked ? 370 : 0;
+  const demurrage=document.getElementById('landed-demurrage').checked ? 125 : 0;
+  const sideloader=parseMoney(document.getElementById('landed-sideloader-fee').value);
+
+  const freightInput=document.getElementById('landed-ocean-freight');
+  const carrierInput=document.getElementById('landed-carrier');
+  const totalChargeInput=document.getElementById('landed-total-charge');
+
+  if(mode==='LCL'){
+    freightInput.value='';
+    carrierInput.value='';
+    const portRateData=LANDED_LCL_RATE_TABLE.LCL[port];
+    if(portRateData){
+      freightInput.value=portRateData.perCbm.toFixed(2);
+      carrierInput.value='LCL';
+    }
+  } else {
+    const rateData=getLandedRateForModePort(mode,port);
+    if(rateData){
+      freightInput.value=String(rateData.rate);
+      carrierInput.value=rateData.carrier;
+    } else {
+      freightInput.value='';
+      carrierInput.value='';
+    }
+  }
+
+  let chargeTotal=0;
+  if(mode==='LCL'){
+    const rows=document.querySelectorAll('#landed-product-body tr');
+    const totalCbm=Array.from(rows).reduce((sum,row)=>{
+      const cbm=parseMoney(row.querySelector('[data-field="cbm-per-carton"]').value);
+      const cartons=parseFloat(row.querySelector('[data-field="cartons"]').value)||0;
+      return sum + cbm * cartons;
+    },0);
+    const chargeData=getLandedLclChargeData(port,Math.max(totalCbm,1));
+    if(chargeData) chargeTotal=chargeData.total;
+  } else {
+    const chargeData=getLandedChargeData(mode,port);
+    if(chargeData) chargeTotal=chargeData.total;
+  }
+
+  if(mode!=='LCL' && freightInput.value){
+    const usdOceanFreight=parseMoney(freightInput.value);
+    chargeTotal = (usdOceanFreight / exchangeRate) + chargeTotal;
+  } else if(mode==='LCL' && freightInput.value){
+    chargeTotal = chargeTotal;
+  }
+
+  chargeTotal += parseMoney(document.getElementById('landed-tt-deposit-fee').value);
+  chargeTotal += ttBalanceFee;
+  chargeTotal += heavyLift + demurrage + sideloader;
+
+  totalChargeInput.value=fmtCurrency(chargeTotal);
+  updateLandedProductRows();
+}
+
+function addLandedProduct(){
+  const tbody=document.getElementById('landed-product-body');
+  const row=document.createElement('tr');
+  row.innerHTML=`
+    <td><input type="text" data-field="sku" value=""></td>
+    <td><input type="text" data-field="desc" value=""></td>
+    <td><input type="number" data-field="usd-price" min="0" step="0.01" value=""></td>
+    <td><input type="number" data-field="qty-per-carton" min="0" step="1" value=""></td>
+    <td><input type="number" data-field="cbm-per-carton" min="0" step="0.01" value=""></td>
+    <td><input type="number" data-field="cartons" min="0" step="1" value=""></td>
+    <td><input type="text" data-field="aud-price-per-carton" readonly value=""></td>
+    <td><input type="text" data-field="aud-freight-per-carton" readonly value=""></td>
+    <td><input type="text" data-field="aud-landed-cost-per-carton" readonly value=""></td>
+    <td><input type="text" data-field="aud-landed-cost-per-bag" readonly value=""></td>
+    <td class="no-print"><button class="remove-btn" aria-label="Remove product">×</button></td>
+  `;
+  tbody.appendChild(row);
+  const removeBtn=row.querySelector('.remove-btn');
+  if(removeBtn){removeBtn.addEventListener('click',()=>{row.remove();updateLandedCalculator();});}
+  row.querySelectorAll('input').forEach(input=>{
+    input.addEventListener('input',()=>updateLandedCalculator());
+  });
+  updateLandedCalculator();
+}
+
+function updateLandedProductRows(){
+  const mode=document.getElementById('landed-ship-mode').value;
+  const exchangeRate=parseMoney(document.getElementById('landed-exchange-rate').value) || 1;
+  const totalCharge=parseMoney(document.getElementById('landed-total-charge').value.replace(/[^0-9.-]/g,''));
+  const rows=document.querySelectorAll('#landed-product-body tr');
+  let totalCbm=0;
+  let totalCartons=0;
+  rows.forEach(row=>{
+    const cbmPerCarton=parseMoney(row.querySelector('[data-field="cbm-per-carton"]').value);
+    const cartons=parseFloat(row.querySelector('[data-field="cartons"]').value)||0;
+    totalCbm += cbmPerCarton * cartons;
+    totalCartons += cartons;
+  });
+
+  rows.forEach(row=>{
+    const usdPrice=parseMoney(row.querySelector('[data-field="usd-price"]').value);
+    const qtyPerCarton=parseFloat(row.querySelector('[data-field="qty-per-carton"]').value)||0;
+    const cbmPerCarton=parseMoney(row.querySelector('[data-field="cbm-per-carton"]').value);
+    const cartons=parseFloat(row.querySelector('[data-field="cartons"]').value)||0;
+    const audPricePerCarton = qtyPerCarton>0 && exchangeRate>0 ? (usdPrice * qtyPerCarton) / exchangeRate : 0;
+    const freightPerCarton = totalCharge>0 && totalCartons>0 && cartons>0
+      ? (totalCharge / totalCartons) * cbmPerCarton
+      : 0;
+    const landedCostPerCarton = audPricePerCarton + freightPerCarton;
+    const landedCostPerBag = qtyPerCarton>0 ? landedCostPerCarton / qtyPerCarton : 0;
+
+    const audPriceField=row.querySelector('[data-field="aud-price-per-carton"]');
+    const freightField=row.querySelector('[data-field="aud-freight-per-carton"]');
+    const landedCartonField=row.querySelector('[data-field="aud-landed-cost-per-carton"]');
+    const landedBagField=row.querySelector('[data-field="aud-landed-cost-per-bag"]');
+    if(audPriceField) audPriceField.value=fmtCurrency(audPricePerCarton);
+    if(freightField) freightField.value=fmtCurrency(freightPerCarton);
+    if(landedCartonField) landedCartonField.value=fmtCurrency(landedCostPerCarton);
+    if(landedBagField) landedBagField.value=fmtCurrency(landedCostPerBag);
+  });
+  document.getElementById('landed-total-cbm').textContent=totalCbm.toFixed(2);
+  document.getElementById('landed-total-cartons').textContent=String(totalCartons);
+}
+
+function sendLandedToQuote(){
+  const rows=document.querySelectorAll('#landed-product-body tr');
+  const validRows=Array.from(rows).filter(row=>{
+    const sku=row.querySelector('[data-field="sku"]').value.trim();
+    const desc=row.querySelector('[data-field="desc"]').value.trim();
+    const cartons=parseFloat(row.querySelector('[data-field="cartons"]').value)||0;
+    return sku||desc||cartons>0;
+  });
+  if(!validRows.length){showToast('Please add at least one landed cost product','error');return;}
+
+  lineItems=[];
+  validRows.forEach(row=>{
+    const sku=row.querySelector('[data-field="sku"]').value.trim();
+    const desc=row.querySelector('[data-field="desc"]').value.trim();
+    const landedPerBag=parseMoney(row.querySelector('[data-field="aud-landed-cost-per-bag"]').value.replace(/[^0-9.-]/g,''));
+    const qtyPerCarton=parseFloat(row.querySelector('[data-field="qty-per-carton"]').value)||0;
+    const cartons=parseFloat(row.querySelector('[data-field="cartons"]').value)||0;
+    const qty=qtyPerCarton>0&&cartons>0?qtyPerCarton*cartons:0;
+    lineItems.push({id:lineId++,sku,desc,qty,cost:landedPerBag,sell:0});
+  });
+  renderLines();
+  updateSummary();
+  showTab('calculator',document.querySelectorAll('.tab')[0]);
+  showToast('Landed cost lines added to calculator','success');
+}
 
 // ─── Database config (Supabase) ───────────────────────────────────────────────
 const SURL='https://xwijlhzmjurizyrgrwco.supabase.co';
@@ -1152,6 +1566,30 @@ function selectProduct(p,itemId){
 
 document.getElementById('quote-date').value=todayISO();
 document.getElementById('fu-date').value=todayISO();
+
+const landedPortSelect=document.getElementById('landed-origin-port');
+if(landedPortSelect){
+  const landedPorts=getLandedPortOptions();
+  landedPortSelect.innerHTML='';
+  landedPorts.forEach(port=>{
+    const option=document.createElement('option');
+    option.value=port;
+    option.textContent=port;
+    landedPortSelect.appendChild(option);
+  });
+  landedPortSelect.value=landedPorts.includes('Colombo')?'Colombo':landedPorts[0];
+}
+
+document.getElementById('landed-ship-mode').addEventListener('change',updateLandedCalculator);
+document.getElementById('landed-origin-port').addEventListener('change',updateLandedCalculator);
+document.getElementById('landed-exchange-rate').addEventListener('input',updateLandedCalculator);
+document.getElementById('landed-tt-balance-fee').addEventListener('input',updateLandedCalculator);
+document.getElementById('landed-sideloader-fee').addEventListener('input',updateLandedCalculator);
+document.getElementById('landed-heavy-lift').addEventListener('change',updateLandedCalculator);
+document.getElementById('landed-demurrage').addEventListener('change',updateLandedCalculator);
+
+addLandedProduct();
+updateLandedCalculator();
 
 // Remember last selected rep via localStorage
 const savedRep=localStorage.getItem('qis_last_rep');

@@ -329,6 +329,57 @@ test('calculates GP and totals correctly for line items', async ({ page }) => {
   await expect(page.locator('#sum-gp-pct')).toHaveText('33.3%');
 });
 
+test('loads the landed cost calculator and computes landed cost values', async ({ page }) => {
+  await mockQuotesApi(page);
+
+  await page.goto(appPath);
+  await page.locator('button.tab', { hasText: 'Landed Cost Calculator' }).click();
+
+  await page.locator('#landed-ship-mode').selectOption('20ft FCL');
+  await page.locator('#landed-origin-port').selectOption('Colombo');
+  await page.locator('#landed-exchange-rate').fill('0.65');
+  await page.locator('#landed-tt-balance-fee').fill('15');
+
+  await expect(page.locator('#landed-ocean-freight')).toHaveValue('1100');
+  await expect(page.locator('#landed-carrier')).toHaveValue('OOCL');
+
+  await page.locator('#landed-product-body input[data-field="sku"]').first().fill('SKU-1');
+  await page.locator('#landed-product-body input[data-field="desc"]').first().fill('Test bag');
+  await page.locator('#landed-product-body input[data-field="usd-price"]').first().fill('4.50');
+  await page.locator('#landed-product-body input[data-field="qty-per-carton"]').first().fill('50');
+  await page.locator('#landed-product-body input[data-field="cbm-per-carton"]').first().fill('0.5');
+  await page.locator('#landed-product-body input[data-field="cartons"]').first().fill('2');
+
+  await expect(page.locator('#landed-product-body input[data-field="aud-price-per-carton"]')).toHaveValue(/346.15|346.2/);
+  await expect(page.locator('#landed-product-body input[data-field="aud-landed-cost-per-bag"]')).not.toHaveValue('');
+});
+
+test('sends landed cost lines into the calculator as cost prices', async ({ page }) => {
+  await mockQuotesApi(page);
+
+  await page.goto(appPath);
+  await page.locator('button.tab', { hasText: 'Landed Cost Calculator' }).click();
+
+  await page.locator('#landed-ship-mode').selectOption('20ft FCL');
+  await page.locator('#landed-origin-port').selectOption('Colombo');
+  await page.locator('#landed-exchange-rate').fill('0.65');
+  await page.locator('#landed-tt-balance-fee').fill('15');
+
+  await page.locator('#landed-product-body input[data-field="sku"]').first().fill('SKU-1');
+  await page.locator('#landed-product-body input[data-field="desc"]').first().fill('Test bag');
+  await page.locator('#landed-product-body input[data-field="usd-price"]').first().fill('4.50');
+  await page.locator('#landed-product-body input[data-field="qty-per-carton"]').first().fill('50');
+  await page.locator('#landed-product-body input[data-field="cbm-per-carton"]').first().fill('0.5');
+  await page.locator('#landed-product-body input[data-field="cartons"]').first().fill('2');
+
+  await page.locator('#send-to-quote-btn').click();
+
+  await expect(page.locator('button.tab').filter({ hasText: /^Calculator$/ })).toHaveClass(/active/);
+  await expect(page.locator('#line-items-body input[data-field="sku"]').first()).toHaveValue('SKU-1');
+  await expect(page.locator('#line-items-body input[data-field="desc"]').first()).toHaveValue('Test bag');
+  await expect(page.locator('#line-items-body input[data-field="cost"]').first()).not.toHaveValue('');
+});
+
 test('updates a quote status from the saved quotes list', async ({ page }) => {
   const initialQuotes = [
     {

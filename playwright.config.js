@@ -11,5 +11,6 @@ module.exports = defineConfig({
     headless: true,
     trace: 'on-first-retry',
     viewport: { width: 1440, height: 900 },
+    launchOptions: process.env.PW_CHROME_PATH ? { executablePath: process.env.PW_CHROME_PATH } : {},
   },
 });

@@ -3,12 +3,29 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>QIS GP Calculator</title>
+<title>QIS Quoting</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f3;color:#1a1a1a;padding:24px;min-height:100vh}
-.container{max-width:900px;margin:0 auto}
+.container{max-width:900px;margin:0 auto;transition:max-width 0.15s}
+.container.wide{max-width:1500px}
+.collapsible-toggle{background:none;border:none;color:#0C447C;font-size:12px;font-weight:500;cursor:pointer;padding:4px 0;margin-top:6px}
+.collapsible-toggle:hover{text-decoration:underline}
+.breakdown-body{display:none;margin-top:0.5rem;padding-top:0.5rem;border-top:1px solid #e8e8e8}
+.breakdown-body.show{display:block}
+.breakdown-row{display:grid;grid-template-columns:1fr 110px;gap:10px;align-items:center;margin-bottom:6px}
+.breakdown-row span{font-size:12px;color:#555}
+.breakdown-row input{font-size:12px;padding:5px 8px;height:28px;text-align:right}
+.cbm-calc-cell{display:flex;flex-direction:column;gap:3px}
+.cbm-calc-cell .cbm-lwh{display:flex;gap:3px}
+.cbm-calc-cell input{width:40px;font-size:11px;padding:3px 4px;height:24px;text-align:center}
+.cbm-calc-cell .unit-btn{font-size:10px;padding:2px 5px;height:24px;border-radius:5px;border:1px solid #e0e0e0;background:#f5f5f3;cursor:pointer;white-space:nowrap}
+.capacity-banner{font-size:12px;padding:6px 10px;border-radius:8px;margin-top:8px;background:#EAF3DE;border:1px solid #C0DD97;color:#27500A}
+.capacity-banner.over{background:#FCEBEB;border-color:#F7C1C1;color:#791F1F}
+.shipments-row{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:#f5f5f3;border:1px solid #e8e8e8;border-radius:8px;margin-bottom:6px}
+.compare-table{width:100%;border-collapse:collapse;font-size:12px}
+.compare-table th,.compare-table td{padding:6px 8px;border-bottom:1px solid #e8e8e8;text-align:left}
 h1{font-size:18px;font-weight:500;margin-bottom:1.5rem;color:#1a1a1a}
 .tabs{display:flex;gap:0;margin-bottom:1.5rem;border-bottom:1px solid #e0e0e0}
 .tab{padding:8px 20px;font-size:13px;font-weight:500;cursor:pointer;border-bottom:2px solid transparent;color:#888;background:none;border-top:none;border-left:none;border-right:none}
@@ -188,7 +205,7 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
 </head>
 <body>
 <div class="container">
-<h1 class="no-print">QIS GP Calculator</h1>
+<h1 class="no-print">QIS Quoting</h1>
 <div class="tabs no-print">
   <button class="tab active" onclick="showTab('calculator',this)">Calculator</button>
   <button class="tab" onclick="showTab('landed',this)">Landed Cost Calculator</button>
@@ -216,6 +233,32 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
     <div class="dialog-btns">
       <button class="btn-cancel" id="newquote-cancel">Cancel</button>
       <button class="btn-confirm" id="newquote-confirm">New quote</button>
+    </div>
+  </div>
+</div>
+
+<!-- Save template dialog -->
+<div class="overlay no-print" id="template-save-overlay" role="dialog" aria-modal="true" aria-labelledby="template-save-title">
+  <div class="dialog-box wide">
+    <h3 id="template-save-title">Save quote template</h3>
+    <div class="field">
+      <label for="template-name-input">Template name</label>
+      <input type="text" id="template-name-input" placeholder="e.g. Standard 1000mm tube order">
+    </div>
+    <div class="dialog-btns">
+      <button class="btn-cancel" id="template-save-cancel">Cancel</button>
+      <button class="btn-confirm" id="template-save-confirm">Save template</button>
+    </div>
+  </div>
+</div>
+
+<!-- Load template dialog -->
+<div class="overlay no-print" id="template-load-overlay" role="dialog" aria-modal="true" aria-labelledby="template-load-title">
+  <div class="dialog-box wide">
+    <h3 id="template-load-title">Load quote template</h3>
+    <div id="template-load-list" style="max-height:280px;overflow-y:auto;margin-bottom:1rem"></div>
+    <div class="dialog-btns">
+      <button class="btn-cancel" id="template-load-cancel">Close</button>
     </div>
   </div>
 </div>
@@ -426,12 +469,38 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
 
 <div class="action-row no-print">
   <button class="new-btn" id="new-btn" onclick="confirmNewQuote()">New quote</button>
+  <button class="new-btn" id="save-template-btn" onclick="openSaveTemplateDialog()">Save as template</button>
+  <button class="new-btn" id="load-template-btn" onclick="openLoadTemplateDialog()">Load template</button>
   <button class="pdf-btn" onclick="generatePDF()">Print / PDF</button>
   <button class="save-btn" id="save-btn" onclick="saveQuote()">Save quote</button>
 </div>
 </div><!-- end tab-calculator -->
 
 <div id="tab-landed" class="tab-content">
+  <!-- Print header for landed cost export -->
+  <div class="print-only" id="landed-print-header" style="margin-bottom:1.5rem;padding-bottom:1rem;border-bottom:2px solid #1a1a1a">
+    <div style="font-size:22px;font-weight:600;color:#1a1a1a">QIS Packaging</div>
+    <div style="font-size:13px;color:#666;margin-top:2px">Landed cost calculation</div>
+    <div id="landed-print-meta" style="font-size:12px;color:#666;margin-top:6px"></div>
+  </div>
+
+  <div class="section no-print">
+    <div class="section-title">Saved shipments</div>
+    <div class="row3" style="margin-bottom:0.75rem">
+      <div class="field" style="grid-column:span 2">
+        <label for="shipment-name-input">Shipment name</label>
+        <input type="text" id="shipment-name-input" placeholder="e.g. Qingdao bags — June order">
+      </div>
+      <div class="field">
+        <label>&nbsp;</label>
+        <button class="add-btn" style="width:100%" onclick="saveShipment()">Save shipment</button>
+      </div>
+    </div>
+    <div id="shipments-list"></div>
+    <button class="collapsible-toggle" onclick="toggleCompareShipments()">Compare suppliers / shipments</button>
+    <div id="shipments-compare" class="breakdown-body"></div>
+  </div>
+
   <div class="section">
     <div class="section-title">Shipment details</div>
     <div class="row3" style="margin-bottom:12px">
@@ -472,14 +541,17 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
         <input type="number" id="landed-tt-balance-fee" min="0" step="0.01" value="0">
       </div>
       <div class="field" style="grid-column:span 2">
-        <label>Total freight and destination charges</label>
-        <div class="input-prefix" style="background:#f5f5f3">
+        <label for="landed-total-charge">Total freight and destination charges (editable — auto-calculates on port/ship mode change, override any time)</label>
+        <div class="input-prefix">
           <span>$</span>
-          <input type="text" id="landed-total-charge" value="$0.00" readonly>
+          <input type="text" id="landed-total-charge" value="0.00">
         </div>
       </div>
     </div>
-    <div class="section-title" style="margin-bottom:0.75rem">Optional add-ons</div>
+    <button class="collapsible-toggle no-print" id="breakdown-toggle-btn" onclick="toggleFreightBreakdown()">Show breakdown</button>
+    <div class="breakdown-body" id="freight-breakdown-body"></div>
+    <div id="landed-capacity-banner" class="capacity-banner" style="display:none"></div>
+    <div class="section-title" style="margin-bottom:0.75rem;margin-top:1rem">Optional add-ons</div>
     <div class="row3">
       <label class="toggle-outer" for="landed-heavy-lift" style="justify-content:flex-start;gap:12px;align-items:center">
         <input type="checkbox" id="landed-heavy-lift" style="width:auto">
@@ -502,16 +574,18 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
       <table class="line-table">
         <thead>
           <tr>
-            <th style="width:90px">SKU</th>
-            <th style="min-width:180px">Description</th>
-            <th style="width:90px">USD price per bag</th>
-            <th style="width:90px">Qty per carton</th>
-            <th style="width:90px">CBM per carton</th>
-            <th style="width:90px">Cartons ordered</th>
-            <th style="width:95px">AUD price/carton</th>
-            <th style="width:115px">AUD freight & customs/carton</th>
-            <th style="width:110px">AUD landed/carton</th>
-            <th style="width:110px">AUD landed/bag</th>
+            <th style="width:80px">SKU</th>
+            <th style="min-width:140px">Description</th>
+            <th style="width:80px">USD price/bag</th>
+            <th style="width:75px">Qty/carton</th>
+            <th style="width:120px">CBM calc (L×W×H)</th>
+            <th style="width:75px">CBM/carton</th>
+            <th style="width:75px">Cartons</th>
+            <th style="width:65px">Duty %</th>
+            <th style="width:90px">AUD price/carton</th>
+            <th style="width:100px">AUD freight &amp; customs/carton</th>
+            <th style="width:95px">AUD landed/carton</th>
+            <th style="width:95px">AUD landed/bag</th>
             <th style="width:28px" class="no-print"></th>
           </tr>
         </thead>
@@ -524,6 +598,7 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
       <div class="quote-totals-row"><span>Total cartons</span><span id="landed-total-cartons">0</span></div>
     </div>
     <div class="action-row no-print" style="margin-top:1rem">
+      <button class="new-btn" onclick="printLandedCost()">Print / Export</button>
       <button class="save-btn" id="send-to-quote-btn" onclick="sendLandedToQuote()">Send to Quote</button>
     </div>
   </div>
@@ -547,9 +622,14 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
     <input type="text" id="filter-customer" placeholder="Search business..." oninput="debounceLoad()" style="width:180px">
     <input type="text" id="filter-rep" placeholder="Search rep..." oninput="debounceLoad()" style="width:140px">
   </div>
+  <div class="legend" id="quotes-legend" style="justify-content:flex-start;border-top:none;padding:0 0 0.75rem">
+    <div class="legend-item"><span class="overdue-dot" style="margin-left:0"></span><span>Overdue follow-up (pending quote, follow-up date in the past)</span></div>
+    <div class="legend-item"><span>Tab badge — e.g. "Saved quotes (1)" — shows the number of quotes with an overdue follow-up</span></div>
+  </div>
   <div id="customer-history-section" class="customer-history" style="display:none">
     <h3 id="customer-history-title">Quote history</h3>
     <div id="customer-history-body"></div>
+    <div id="customer-history-notes" style="margin-top:0.75rem"></div>
   </div>
   <div id="quotes-container" class="empty-state">Select a filter or switch to this tab to load quotes</div>
 </div>
@@ -685,60 +765,127 @@ function getLandedRateForModePort(mode,port){
   return LANDED_RATE_TABLE[mode] && LANDED_RATE_TABLE[mode][port] ? LANDED_RATE_TABLE[mode][port] : null;
 }
 
-function getLandedChargeData(mode,port){
-  const rateData=getLandedRateForModePort(mode,port);
-  if(!rateData) return null;
-  const carrier=rateData.carrier;
-  const carrierCharges=FCL_DESTINATION_CHARGES[carrier] || FCL_DESTINATION_CHARGES.OOCL;
-  const cartage=FCL_COMMON_CHARGES.cartage[mode] || 0;
-  const domesticFuel=cartage * 0.35;
-  const total=
-    carrierCharges.portService[mode] +
-    carrierCharges.docFee +
-    FCL_COMMON_CHARGES.deliveryOrder +
-    FCL_COMMON_CHARGES.cargoReporting +
-    FCL_COMMON_CHARGES.edi +
-    FCL_COMMON_CHARGES.customsClearance +
-    FCL_COMMON_CHARGES.quarantineRegistration +
-    cartage +
-    domesticFuel +
-    FCL_COMMON_CHARGES.timeSlot +
-    FCL_COMMON_CHARGES.portInfrastructure +
-    FCL_COMMON_CHARGES.tolls;
-  return { carrier, rateData, total };
+// FCL container capacity, in CBM, per the standard rate card
+const FCL_CONTAINER_CBM={'20ft FCL':26,'40ft FCL':65};
+
+let _breakdownOverrides={};
+let _totalManualOverride=false;
+
+function getFreightBreakdownItems(mode,port,exchangeRate,totalCbm){
+  const items=[];
+  if(mode==='LCL'){
+    const rateData=LANDED_LCL_RATE_TABLE.LCL[port];
+    if(!rateData) return items;
+    const cbm=Math.max(totalCbm,1);
+    const delivery=Math.max(90,30*cbm);
+    const temporaryTerminal=Math.max(18.5,5*cbm);
+    items.push(
+      {key:'portService',label:'Port service ('+cbm.toFixed(2)+' CBM)',value:round2(LCL_DESTINATION_CHARGES.perCbm.portService*cbm)},
+      {key:'terminalHandling',label:'Terminal handling',value:round2(LCL_DESTINATION_CHARGES.perCbm.terminalHandling*cbm)},
+      {key:'portInfrastructure',label:'Port infrastructure',value:round2(LCL_DESTINATION_CHARGES.perCbm.portInfrastructure*cbm)},
+      {key:'delivery',label:'Delivery',value:round2(delivery)},
+      {key:'deliveryFuel',label:'Delivery fuel surcharge',value:round2(delivery*0.35)},
+      {key:'temporaryTerminal',label:'Temporary terminal storage',value:round2(temporaryTerminal)},
+      {key:'temporaryFuel',label:'Temporary terminal fuel surcharge',value:round2(temporaryTerminal*0.35)},
+      {key:'deliveryOrder',label:'Delivery order fee',value:LCL_DESTINATION_CHARGES.perCbm.deliveryOrder},
+      {key:'edi',label:'EDI fee',value:LCL_DESTINATION_CHARGES.perCbm.edi},
+      {key:'cargoReporting',label:'Cargo reporting',value:LCL_DESTINATION_CHARGES.perCbm.cargoReporting},
+      {key:'customsClearance',label:'Customs clearance',value:LCL_DESTINATION_CHARGES.perCbm.customsClearance},
+      {key:'quarantineRegistration',label:'Quarantine registration',value:LCL_DESTINATION_CHARGES.perCbm.quarantineRegistration}
+    );
+  } else {
+    const rateData=getLandedRateForModePort(mode,port);
+    if(!rateData) return items;
+    const carrierCharges=FCL_DESTINATION_CHARGES[rateData.carrier]||FCL_DESTINATION_CHARGES.OOCL;
+    const cartage=FCL_COMMON_CHARGES.cartage[mode]||0;
+    items.push(
+      {key:'oceanFreight',label:'Ocean freight (USD '+rateData.rate+' ÷ '+exchangeRate+')',value:round2(rateData.rate/(exchangeRate||1))},
+      {key:'portService',label:'Port service charge',value:carrierCharges.portService[mode]},
+      {key:'docFee',label:'Documentation fee',value:carrierCharges.docFee},
+      {key:'deliveryOrder',label:'Delivery order fee',value:FCL_COMMON_CHARGES.deliveryOrder},
+      {key:'cargoReporting',label:'Cargo reporting',value:FCL_COMMON_CHARGES.cargoReporting},
+      {key:'edi',label:'EDI fee',value:FCL_COMMON_CHARGES.edi},
+      {key:'customsClearance',label:'Customs clearance',value:FCL_COMMON_CHARGES.customsClearance},
+      {key:'quarantineRegistration',label:'Quarantine registration',value:FCL_COMMON_CHARGES.quarantineRegistration},
+      {key:'cartage',label:'Cartage',value:cartage},
+      {key:'domesticFuel',label:'Domestic fuel surcharge',value:round2(cartage*0.35)},
+      {key:'timeSlot',label:'Time slot booking',value:FCL_COMMON_CHARGES.timeSlot},
+      {key:'portInfrastructure',label:'Port infrastructure',value:FCL_COMMON_CHARGES.portInfrastructure},
+      {key:'tolls',label:'Tolls',value:FCL_COMMON_CHARGES.tolls}
+    );
+  }
+  return items.map(item=>({...item,value:_breakdownOverrides[item.key]!=null?_breakdownOverrides[item.key]:item.value}));
 }
 
-function getLandedLclChargeData(port,totalCbm){
-  const rateData=LANDED_LCL_RATE_TABLE.LCL[port];
-  if(!rateData) return null;
-  const delivery = Math.max(90, 30 * totalCbm);
-  const temporaryTerminal = Math.max(18.5, 5 * totalCbm);
-  const deliveryFuel = delivery * 0.35;
-  const temporaryFuel = temporaryTerminal * 0.35;
-  const total =
-    (LCL_DESTINATION_CHARGES.perCbm.portService * totalCbm) +
-    (LCL_DESTINATION_CHARGES.perCbm.terminalHandling * totalCbm) +
-    (LCL_DESTINATION_CHARGES.perCbm.portInfrastructure * totalCbm) +
-    delivery +
-    deliveryFuel +
-    temporaryTerminal +
-    temporaryFuel +
-    LCL_DESTINATION_CHARGES.perCbm.deliveryOrder +
-    LCL_DESTINATION_CHARGES.perCbm.edi +
-    LCL_DESTINATION_CHARGES.perCbm.cargoReporting +
-    LCL_DESTINATION_CHARGES.perCbm.customsClearance +
-    LCL_DESTINATION_CHARGES.perCbm.quarantineRegistration;
-  return { rateData, total };
+function renderFreightBreakdown(items){
+  const body=document.getElementById('freight-breakdown-body');
+  body.innerHTML='';
+  items.forEach(item=>{
+    const row=document.createElement('div');row.className='breakdown-row';
+    const label=document.createElement('span');label.textContent=item.label;
+    const wrap=document.createElement('div');wrap.className='input-prefix';
+    wrap.innerHTML='<span>$</span>';
+    const inp=document.createElement('input');
+    inp.type='number';inp.step='0.01';inp.value=item.value;
+    inp.dataset.breakdownKey=item.key;
+    inp.addEventListener('input',()=>{
+      _breakdownOverrides[item.key]=parseMoney(inp.value);
+      recalcTotalFromBreakdown();
+    });
+    wrap.appendChild(inp);
+    row.appendChild(label);row.appendChild(wrap);
+    body.appendChild(row);
+  });
+}
+
+function recalcTotalFromBreakdown(){
+  const breakdownSum=Array.from(document.querySelectorAll('#freight-breakdown-body input')).reduce((a,i)=>a+parseMoney(i.value),0);
+  const ttDeposit=parseMoney(document.getElementById('landed-tt-deposit-fee').value);
+  const ttBalance=parseMoney(document.getElementById('landed-tt-balance-fee').value);
+  const heavyLift=document.getElementById('landed-heavy-lift').checked?370:0;
+  const demurrage=document.getElementById('landed-demurrage').checked?125:0;
+  const sideloader=parseMoney(document.getElementById('landed-sideloader-fee').value);
+  const total=breakdownSum+ttDeposit+ttBalance+heavyLift+demurrage+sideloader;
+  document.getElementById('landed-total-charge').value=total.toFixed(2);
+  updateLandedProductRows();
+}
+
+function toggleFreightBreakdown(){
+  const body=document.getElementById('freight-breakdown-body');
+  const btn=document.getElementById('breakdown-toggle-btn');
+  const show=!body.classList.contains('show');
+  body.classList.toggle('show',show);
+  btn.textContent=show?'Hide breakdown':'Show breakdown';
+}
+
+function updateCapacityBanner(mode,totalCbm){
+  const banner=document.getElementById('landed-capacity-banner');
+  const capacity=FCL_CONTAINER_CBM[mode];
+  if(!capacity){banner.style.display='none';return;}
+  banner.style.display='block';
+  const pct=(totalCbm/capacity*100).toFixed(0);
+  if(totalCbm>capacity){
+    banner.className='capacity-banner over';
+    banner.textContent='Over capacity: '+totalCbm.toFixed(2)+' / '+capacity+' CBM ('+pct+'%) for a '+mode+' container';
+  } else {
+    banner.className='capacity-banner';
+    banner.textContent=totalCbm.toFixed(2)+' / '+capacity+' CBM used ('+pct+'%) for a '+mode+' container';
+  }
+}
+
+function getLandedTotalCbm(){
+  const rows=document.querySelectorAll('#landed-product-body tr');
+  return Array.from(rows).reduce((sum,row)=>{
+    const cbm=parseMoney(row.querySelector('[data-field="cbm-per-carton"]').value);
+    const cartons=parseFloat(row.querySelector('[data-field="cartons"]').value)||0;
+    return sum+cbm*cartons;
+  },0);
 }
 
 function updateLandedCalculator(){
   const mode=document.getElementById('landed-ship-mode').value;
   const port=document.getElementById('landed-origin-port').value;
   const exchangeRate=parseMoney(document.getElementById('landed-exchange-rate').value) || 1;
-  const ttBalanceFee=parseMoney(document.getElementById('landed-tt-balance-fee').value);
-  const heavyLift=document.getElementById('landed-heavy-lift').checked ? 370 : 0;
-  const demurrage=document.getElementById('landed-demurrage').checked ? 125 : 0;
-  const sideloader=parseMoney(document.getElementById('landed-sideloader-fee').value);
 
   const freightInput=document.getElementById('landed-ocean-freight');
   const carrierInput=document.getElementById('landed-carrier');
@@ -763,34 +910,34 @@ function updateLandedCalculator(){
     }
   }
 
-  let chargeTotal=0;
-  if(mode==='LCL'){
-    const rows=document.querySelectorAll('#landed-product-body tr');
-    const totalCbm=Array.from(rows).reduce((sum,row)=>{
-      const cbm=parseMoney(row.querySelector('[data-field="cbm-per-carton"]').value);
-      const cartons=parseFloat(row.querySelector('[data-field="cartons"]').value)||0;
-      return sum + cbm * cartons;
-    },0);
-    const chargeData=getLandedLclChargeData(port,Math.max(totalCbm,1));
-    if(chargeData) chargeTotal=chargeData.total;
-  } else {
-    const chargeData=getLandedChargeData(mode,port);
-    if(chargeData) chargeTotal=chargeData.total;
+  const totalCbm=getLandedTotalCbm();
+  const items=getFreightBreakdownItems(mode,port,exchangeRate,totalCbm);
+  renderFreightBreakdown(items);
+  updateCapacityBanner(mode,totalCbm);
+
+  if(!_totalManualOverride){
+    const breakdownSum=items.reduce((a,i)=>a+i.value,0);
+    const ttDeposit=parseMoney(document.getElementById('landed-tt-deposit-fee').value);
+    const ttBalance=parseMoney(document.getElementById('landed-tt-balance-fee').value);
+    const heavyLift=document.getElementById('landed-heavy-lift').checked?370:0;
+    const demurrage=document.getElementById('landed-demurrage').checked?125:0;
+    const sideloader=parseMoney(document.getElementById('landed-sideloader-fee').value);
+    const chargeTotal=breakdownSum+ttDeposit+ttBalance+heavyLift+demurrage+sideloader;
+    totalChargeInput.value=chargeTotal.toFixed(2);
   }
-
-  if(mode!=='LCL' && freightInput.value){
-    const usdOceanFreight=parseMoney(freightInput.value);
-    chargeTotal = (usdOceanFreight / exchangeRate) + chargeTotal;
-  } else if(mode==='LCL' && freightInput.value){
-    chargeTotal = chargeTotal;
-  }
-
-  chargeTotal += parseMoney(document.getElementById('landed-tt-deposit-fee').value);
-  chargeTotal += ttBalanceFee;
-  chargeTotal += heavyLift + demurrage + sideloader;
-
-  totalChargeInput.value=fmtCurrency(chargeTotal);
   updateLandedProductRows();
+}
+
+function computeRowCbm(row){
+  const l=parseMoney(row.querySelector('[data-field="cbm-l"]').value);
+  const w=parseMoney(row.querySelector('[data-field="cbm-w"]').value);
+  const h=parseMoney(row.querySelector('[data-field="cbm-h"]').value);
+  if(!(l>0&&w>0&&h>0))return;
+  const unitBtn=row.querySelector('[data-field="cbm-unit"]');
+  const unit=unitBtn?unitBtn.dataset.unit:'cm';
+  const divisor=unit==='mm'?1e9:1e6;
+  const cbm=(l*w*h)/divisor;
+  row.querySelector('[data-field="cbm-per-carton"]').value=round2(cbm);
 }
 
 function addLandedProduct(){
@@ -801,8 +948,17 @@ function addLandedProduct(){
     <td><input type="text" data-field="desc" value=""></td>
     <td><input type="number" data-field="usd-price" min="0" step="0.01" value=""></td>
     <td><input type="number" data-field="qty-per-carton" min="0" step="1" value=""></td>
+    <td><div class="cbm-calc-cell">
+      <div class="cbm-lwh">
+        <input type="number" data-field="cbm-l" min="0" step="0.1" placeholder="L">
+        <input type="number" data-field="cbm-w" min="0" step="0.1" placeholder="W">
+        <input type="number" data-field="cbm-h" min="0" step="0.1" placeholder="H">
+      </div>
+      <button type="button" class="unit-btn" data-field="cbm-unit" data-unit="cm">cm</button>
+    </div></td>
     <td><input type="number" data-field="cbm-per-carton" min="0" step="0.01" value=""></td>
     <td><input type="number" data-field="cartons" min="0" step="1" value=""></td>
+    <td><input type="number" data-field="duty-pct" min="0" step="0.1" placeholder="0" value=""></td>
     <td><input type="text" data-field="aud-price-per-carton" readonly value=""></td>
     <td><input type="text" data-field="aud-freight-per-carton" readonly value=""></td>
     <td><input type="text" data-field="aud-landed-cost-per-carton" readonly value=""></td>
@@ -813,13 +969,22 @@ function addLandedProduct(){
   const removeBtn=row.querySelector('.remove-btn');
   if(removeBtn){removeBtn.addEventListener('click',()=>{row.remove();updateLandedCalculator();});}
   row.querySelectorAll('input').forEach(input=>{
-    input.addEventListener('input',()=>updateLandedCalculator());
+    input.addEventListener('input',()=>{
+      if(['cbm-l','cbm-w','cbm-h'].includes(input.dataset.field)) computeRowCbm(row);
+      updateLandedCalculator();
+    });
+  });
+  const unitBtn=row.querySelector('[data-field="cbm-unit"]');
+  unitBtn.addEventListener('click',()=>{
+    unitBtn.dataset.unit=unitBtn.dataset.unit==='cm'?'mm':'cm';
+    unitBtn.textContent=unitBtn.dataset.unit;
+    computeRowCbm(row);
+    updateLandedCalculator();
   });
   updateLandedCalculator();
 }
 
 function updateLandedProductRows(){
-  const mode=document.getElementById('landed-ship-mode').value;
   const exchangeRate=parseMoney(document.getElementById('landed-exchange-rate').value) || 1;
   const totalCharge=parseMoney(document.getElementById('landed-total-charge').value.replace(/[^0-9.-]/g,''));
   const rows=document.querySelectorAll('#landed-product-body tr');
@@ -837,11 +1002,13 @@ function updateLandedProductRows(){
     const qtyPerCarton=parseFloat(row.querySelector('[data-field="qty-per-carton"]').value)||0;
     const cbmPerCarton=parseMoney(row.querySelector('[data-field="cbm-per-carton"]').value);
     const cartons=parseFloat(row.querySelector('[data-field="cartons"]').value)||0;
+    const dutyPct=parseMoney(row.querySelector('[data-field="duty-pct"]').value);
     const audPricePerCarton = qtyPerCarton>0 && exchangeRate>0 ? (usdPrice * qtyPerCarton) / exchangeRate : 0;
     const freightPerCarton = totalCharge>0 && totalCartons>0 && cartons>0
       ? (totalCharge / totalCartons) * cbmPerCarton
       : 0;
-    const landedCostPerCarton = audPricePerCarton + freightPerCarton;
+    const dutyPerCarton = (audPricePerCarton+freightPerCarton) * (dutyPct/100);
+    const landedCostPerCarton = audPricePerCarton + freightPerCarton + dutyPerCarton;
     const landedCostPerBag = qtyPerCarton>0 ? landedCostPerCarton / qtyPerCarton : 0;
 
     const audPriceField=row.querySelector('[data-field="aud-price-per-carton"]');
@@ -855,6 +1022,168 @@ function updateLandedProductRows(){
   });
   document.getElementById('landed-total-cbm').textContent=totalCbm.toFixed(2);
   document.getElementById('landed-total-cartons').textContent=String(totalCartons);
+  updateCapacityBanner(document.getElementById('landed-ship-mode').value,totalCbm);
+}
+
+// ─── Print / export landed cost ────────────────────────────────────────────────
+
+function printLandedCost(){
+  const mode=document.getElementById('landed-ship-mode').value;
+  const port=document.getElementById('landed-origin-port').value;
+  document.getElementById('landed-print-meta').textContent=
+    mode+' from '+port+' — '+todayISO().split('-').reverse().join('/');
+  window.print();
+}
+
+// ─── Save / load shipments and supplier comparison ────────────────────────────
+
+const SHIPMENTS_KEY='qis_landed_shipments';
+
+function getShipments(){
+  try{return JSON.parse(localStorage.getItem(SHIPMENTS_KEY)||'[]');}catch(e){return[];}
+}
+function setShipments(list){localStorage.setItem(SHIPMENTS_KEY,JSON.stringify(list));}
+
+function captureLandedState(){
+  const rows=Array.from(document.querySelectorAll('#landed-product-body tr'));
+  const products=rows.map(row=>({
+    sku:row.querySelector('[data-field="sku"]').value,
+    desc:row.querySelector('[data-field="desc"]').value,
+    usdPrice:row.querySelector('[data-field="usd-price"]').value,
+    qtyPerCarton:row.querySelector('[data-field="qty-per-carton"]').value,
+    cbmPerCarton:row.querySelector('[data-field="cbm-per-carton"]').value,
+    cartons:row.querySelector('[data-field="cartons"]').value,
+    dutyPct:row.querySelector('[data-field="duty-pct"]').value,
+    cbmL:row.querySelector('[data-field="cbm-l"]').value,
+    cbmW:row.querySelector('[data-field="cbm-w"]').value,
+    cbmH:row.querySelector('[data-field="cbm-h"]').value,
+    cbmUnit:row.querySelector('[data-field="cbm-unit"]').dataset.unit,
+    landedPerCarton:parseMoney(row.querySelector('[data-field="aud-landed-cost-per-carton"]').value.replace(/[^0-9.-]/g,''))
+  }));
+  const totalCartons=products.reduce((a,p)=>a+(parseFloat(p.cartons)||0),0);
+  const totalLandedCost=products.reduce((a,p)=>a+p.landedPerCarton*(parseFloat(p.cartons)||0),0);
+  return{
+    mode:document.getElementById('landed-ship-mode').value,
+    port:document.getElementById('landed-origin-port').value,
+    exchangeRate:document.getElementById('landed-exchange-rate').value,
+    ttBalance:document.getElementById('landed-tt-balance-fee').value,
+    heavyLift:document.getElementById('landed-heavy-lift').checked,
+    demurrage:document.getElementById('landed-demurrage').checked,
+    sideloader:document.getElementById('landed-sideloader-fee').value,
+    totalCharge:document.getElementById('landed-total-charge').value,
+    totalCbm:getLandedTotalCbm(),
+    totalCartons,totalLandedCost,
+    products
+  };
+}
+
+function saveShipment(){
+  const nameInput=document.getElementById('shipment-name-input');
+  const name=nameInput.value.trim();
+  if(!name){showToast('Please enter a shipment name','error');return;}
+  const shipments=getShipments();
+  shipments.push({id:Date.now(),name,state:captureLandedState()});
+  setShipments(shipments);
+  nameInput.value='';
+  renderShipmentsList();
+  showToast('Shipment "'+name+'" saved','success');
+}
+
+function renderShipmentsList(){
+  const list=document.getElementById('shipments-list');
+  const shipments=getShipments();
+  list.innerHTML='';
+  if(!shipments.length){
+    list.innerHTML='<div class="empty-state">No shipments saved yet</div>';
+    return;
+  }
+  shipments.forEach(s=>{
+    const row=document.createElement('div');row.className='shipments-row';
+    const label=document.createElement('span');
+    label.textContent=s.name+' — '+s.state.mode+' from '+s.state.port+' ('+fmtCurrency(s.state.totalLandedCost)+' landed)';
+    const btns=document.createElement('div');
+    const loadBtn=document.createElement('button');loadBtn.className='row-action-btn edit-btn';loadBtn.textContent='Load';
+    loadBtn.addEventListener('click',()=>loadShipment(s.id));
+    const delBtn=document.createElement('button');delBtn.className='row-action-btn delete-btn';delBtn.textContent='Delete';
+    delBtn.addEventListener('click',()=>deleteShipment(s.id));
+    btns.appendChild(loadBtn);btns.appendChild(delBtn);
+    row.appendChild(label);row.appendChild(btns);
+    list.appendChild(row);
+  });
+}
+
+function loadShipment(id){
+  const s=getShipments().find(x=>x.id===id);
+  if(!s)return;
+  const st=s.state;
+  document.getElementById('landed-ship-mode').value=st.mode;
+  document.getElementById('landed-origin-port').value=st.port;
+  document.getElementById('landed-exchange-rate').value=st.exchangeRate;
+  document.getElementById('landed-tt-balance-fee').value=st.ttBalance;
+  document.getElementById('landed-heavy-lift').checked=st.heavyLift;
+  document.getElementById('landed-demurrage').checked=st.demurrage;
+  document.getElementById('landed-sideloader-fee').value=st.sideloader;
+  _breakdownOverrides={};
+  _totalManualOverride=false;
+  document.getElementById('landed-product-body').innerHTML='';
+  st.products.forEach(()=>addLandedProduct());
+  const rows=document.querySelectorAll('#landed-product-body tr');
+  st.products.forEach((p,i)=>{
+    const row=rows[i];
+    row.querySelector('[data-field="sku"]').value=p.sku||'';
+    row.querySelector('[data-field="desc"]').value=p.desc||'';
+    row.querySelector('[data-field="usd-price"]').value=p.usdPrice||'';
+    row.querySelector('[data-field="qty-per-carton"]').value=p.qtyPerCarton||'';
+    row.querySelector('[data-field="cbm-l"]').value=p.cbmL||'';
+    row.querySelector('[data-field="cbm-w"]').value=p.cbmW||'';
+    row.querySelector('[data-field="cbm-h"]').value=p.cbmH||'';
+    const unitBtn=row.querySelector('[data-field="cbm-unit"]');
+    unitBtn.dataset.unit=p.cbmUnit||'cm';unitBtn.textContent=unitBtn.dataset.unit;
+    row.querySelector('[data-field="cbm-per-carton"]').value=p.cbmPerCarton||'';
+    row.querySelector('[data-field="cartons"]').value=p.cartons||'';
+    row.querySelector('[data-field="duty-pct"]').value=p.dutyPct||'';
+  });
+  if(!st.products.length) addLandedProduct();
+  document.getElementById('landed-total-charge').value=st.totalCharge||'0.00';
+  updateLandedCalculator();
+  showToast('Shipment "'+s.name+'" loaded','success');
+}
+
+function deleteShipment(id){
+  setShipments(getShipments().filter(s=>s.id!==id));
+  renderShipmentsList();
+}
+
+function toggleCompareShipments(){
+  const panel=document.getElementById('shipments-compare');
+  const show=!panel.classList.contains('show');
+  panel.classList.toggle('show',show);
+  if(!show)return;
+  const shipments=getShipments();
+  panel.innerHTML='';
+  if(!shipments.length){
+    panel.innerHTML='<div class="empty-state">Save at least two shipments to compare suppliers</div>';
+    return;
+  }
+  const table=document.createElement('table');table.className='compare-table';
+  const thead=document.createElement('thead');
+  const hrow=document.createElement('tr');
+  ['Shipment','Mode','Port','Exch. rate','Total freight','Total CBM','Total landed cost','Landed $/CBM'].forEach(h=>{
+    const th=document.createElement('th');th.textContent=h;hrow.appendChild(th);
+  });
+  thead.appendChild(hrow);table.appendChild(thead);
+  const tbody=document.createElement('tbody');
+  shipments.forEach(s=>{
+    const st=s.state;
+    const tr=document.createElement('tr');
+    const perCbm=st.totalCbm>0?st.totalLandedCost/st.totalCbm:0;
+    [s.name,st.mode,st.port,st.exchangeRate,fmtCurrency(parseMoney(st.totalCharge)),st.totalCbm.toFixed(2),fmtCurrency(st.totalLandedCost),fmtCurrency(perCbm)].forEach(val=>{
+      const td=document.createElement('td');td.textContent=val;tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  panel.appendChild(table);
 }
 
 function sendLandedToQuote(){
@@ -952,6 +1281,7 @@ function showTab(name,el){
   document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));
   document.getElementById('tab-'+name).classList.add('active');
   el.classList.add('active');
+  document.querySelector('.container').classList.toggle('wide',name==='landed');
   if(name==='quotes')loadQuotes();
   else if(name==='reporting')loadReporting();
 }
@@ -1580,16 +1910,26 @@ if(landedPortSelect){
   landedPortSelect.value=landedPorts.includes('Colombo')?'Colombo':landedPorts[0];
 }
 
-document.getElementById('landed-ship-mode').addEventListener('change',updateLandedCalculator);
-document.getElementById('landed-origin-port').addEventListener('change',updateLandedCalculator);
+function resetLandedOverridesAndRecalc(){
+  _breakdownOverrides={};
+  _totalManualOverride=false;
+  updateLandedCalculator();
+}
+document.getElementById('landed-ship-mode').addEventListener('change',resetLandedOverridesAndRecalc);
+document.getElementById('landed-origin-port').addEventListener('change',resetLandedOverridesAndRecalc);
 document.getElementById('landed-exchange-rate').addEventListener('input',updateLandedCalculator);
 document.getElementById('landed-tt-balance-fee').addEventListener('input',updateLandedCalculator);
 document.getElementById('landed-sideloader-fee').addEventListener('input',updateLandedCalculator);
 document.getElementById('landed-heavy-lift').addEventListener('change',updateLandedCalculator);
 document.getElementById('landed-demurrage').addEventListener('change',updateLandedCalculator);
+document.getElementById('landed-total-charge').addEventListener('input',function(){
+  _totalManualOverride=true;
+  updateLandedProductRows();
+});
 
 addLandedProduct();
 updateLandedCalculator();
+renderShipmentsList();
 
 // Remember last selected rep via localStorage
 const savedRep=localStorage.getItem('qis_last_rep');
@@ -1768,6 +2108,94 @@ function loadQuoteIntoForm(q,editMode=false){
   if(!editMode) _editingId=null; // duplicate = new quote, not editing existing
   showTab('calculator',document.querySelectorAll('.tab')[0]);
   if(!editMode) showToast('Quote duplicated — enter a new quote number before saving','success');
+}
+
+// ─── Quote templates ──────────────────────────────────────────────────────────
+// Templates are stored client-side (localStorage) since they're reusable quote
+// structures, not records that need to be shared/audited like saved quotes.
+
+const TEMPLATES_KEY='qis_quote_templates';
+
+function getTemplates(){
+  try{return JSON.parse(localStorage.getItem(TEMPLATES_KEY)||'[]');}catch(e){return[];}
+}
+function setTemplates(list){
+  localStorage.setItem(TEMPLATES_KEY,JSON.stringify(list));
+}
+
+function openSaveTemplateDialog(){
+  document.getElementById('template-name-input').value='';
+  document.getElementById('template-save-overlay').classList.add('show');
+  document.getElementById('template-name-input').focus();
+}
+
+document.getElementById('template-save-cancel').addEventListener('click',()=>{
+  document.getElementById('template-save-overlay').classList.remove('show');
+});
+document.getElementById('template-save-confirm').addEventListener('click',()=>{
+  const name=document.getElementById('template-name-input').value.trim();
+  if(!name){showToast('Please enter a template name','error');return;}
+  const valid=getValidLines();
+  if(!valid.length){showToast('Add at least one line item before saving a template','error');return;}
+  const templates=getTemplates();
+  templates.push({
+    id:Date.now(),
+    name,
+    lineItems:valid.map(l=>({sku:l.sku,desc:l.desc,qty:l.qty,cost:l.cost,sell:l.sell})),
+    freight:parseFloat(document.getElementById('freight').value)||0,
+    freightOn:document.getElementById('freight-toggle').checked
+  });
+  setTemplates(templates);
+  document.getElementById('template-save-overlay').classList.remove('show');
+  showToast('Template "'+name+'" saved','success');
+});
+
+function openLoadTemplateDialog(){
+  const list=document.getElementById('template-load-list');
+  const templates=getTemplates();
+  list.innerHTML='';
+  if(!templates.length){
+    list.innerHTML='<div class="empty-state">No templates saved yet</div>';
+  } else {
+    templates.forEach(t=>{
+      const row=document.createElement('div');
+      row.style.cssText='display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:#f5f5f3;border:1px solid #e8e8e8;border-radius:8px;margin-bottom:6px';
+      const label=document.createElement('span');
+      label.style.fontSize='13px';
+      label.textContent=t.name+' ('+t.lineItems.length+' line'+(t.lineItems.length===1?'':'s')+')';
+      const btns=document.createElement('div');
+      const useBtn=document.createElement('button');
+      useBtn.className='row-action-btn edit-btn';useBtn.textContent='Use';
+      useBtn.addEventListener('click',()=>applyTemplate(t.id));
+      const delBtn=document.createElement('button');
+      delBtn.className='row-action-btn delete-btn';delBtn.textContent='Delete';
+      delBtn.addEventListener('click',()=>deleteTemplate(t.id));
+      btns.appendChild(useBtn);btns.appendChild(delBtn);
+      row.appendChild(label);row.appendChild(btns);
+      list.appendChild(row);
+    });
+  }
+  document.getElementById('template-load-overlay').classList.add('show');
+}
+document.getElementById('template-load-cancel').addEventListener('click',()=>{
+  document.getElementById('template-load-overlay').classList.remove('show');
+});
+
+function applyTemplate(id){
+  const t=getTemplates().find(x=>x.id===id);
+  if(!t)return;
+  lineItems=t.lineItems.map(l=>({id:lineId++,sku:l.sku||'',desc:l.desc||'',qty:l.qty||0,cost:l.cost||0,sell:l.sell||0}));
+  document.getElementById('freight').value=t.freight||0;
+  document.getElementById('freight-toggle').checked=!!t.freightOn;
+  document.getElementById('tog-label').textContent=t.freightOn?'On':'Off';
+  renderLines();updateSummary();
+  document.getElementById('template-load-overlay').classList.remove('show');
+  showToast('Template "'+t.name+'" loaded','success');
+}
+
+function deleteTemplate(id){
+  setTemplates(getTemplates().filter(t=>t.id!==id));
+  openLoadTemplateDialog();
 }
 
 // ─── Save quote ───────────────────────────────────────────────────────────────
@@ -2240,6 +2668,28 @@ function renderCustomerHistory(fc,allQuotes){
   });
   body.innerHTML='';
   body.appendChild(div);
+
+  // Customer notes — show internal notes from past quotes for this business
+  const notesEl=document.getElementById('customer-history-notes');
+  notesEl.innerHTML='';
+  const notedQuotes=matches.filter(q=>q.notes).sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0));
+  if(notedQuotes.length){
+    const notesTitle=document.createElement('div');
+    notesTitle.style.cssText='font-size:11px;font-weight:500;color:#888;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px';
+    notesTitle.textContent='Customer notes';
+    notesEl.appendChild(notesTitle);
+    notedQuotes.slice(0,5).forEach(q=>{
+      const noteRow=document.createElement('div');
+      noteRow.style.cssText='font-size:13px;color:#1a1a1a;background:#fff;border:1px solid #e8e8e8;border-radius:8px;padding:8px 10px;margin-bottom:6px';
+      const meta=document.createElement('div');
+      meta.style.cssText='font-size:11px;color:#888;margin-bottom:2px';
+      meta.textContent=(q.quote_number||'Quote')+' — '+fmtDate(q.quote_date);
+      const text=document.createElement('div');
+      text.textContent=q.notes;
+      noteRow.appendChild(meta);noteRow.appendChild(text);
+      notesEl.appendChild(noteRow);
+    });
+  }
   section.style.display='block';
 }
 

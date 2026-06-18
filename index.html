@@ -770,7 +770,7 @@ function getLandedRateForModePort(mode,port){
 }
 
 // FCL container capacity, in CBM, per the standard rate card
-const FCL_CONTAINER_CBM={'20ft FCL':26,'40ft FCL':65};
+const FCL_CONTAINER_CBM={'20ft FCL':30,'40ft FCL':60};
 
 let _breakdownOverrides={};
 let _totalManualOverride=false;
@@ -1004,6 +1004,7 @@ function addLandedProduct(){
 function updateLandedProductRows(){
   const exchangeRate=parseMoney(document.getElementById('landed-exchange-rate').value) || 1;
   const totalCharge=parseMoney(document.getElementById('landed-total-charge').value.replace(/[^0-9.-]/g,''));
+  const mode=document.getElementById('landed-ship-mode').value;
   const rows=document.querySelectorAll('#landed-product-body tr');
   let totalCbm=0;
   let totalCartons=0;
@@ -1013,6 +1014,10 @@ function updateLandedProductRows(){
     totalCbm += cbmPerCarton * cartons;
     totalCartons += cartons;
   });
+  // FCL freight is paid for the whole fixed-capacity container, regardless of how much
+  // CBM is actually loaded, so the cost-per-CBM divisor must be the container's fixed
+  // capacity rather than the actual product CBM loaded.
+  const cbmDivisor = FCL_CONTAINER_CBM[mode] || totalCbm;
 
   rows.forEach(row=>{
     const usdPrice=parseMoney(row.querySelector('[data-field="usd-price"]').value);
@@ -1021,8 +1026,8 @@ function updateLandedProductRows(){
     const cartons=parseFloat(row.querySelector('[data-field="cartons"]').value)||0;
     const dutyPct=parseMoney(row.querySelector('[data-field="duty-pct"]').value);
     const audPricePerCarton = qtyPerCarton>0 && exchangeRate>0 ? (usdPrice * qtyPerCarton) / exchangeRate : 0;
-    const freightPerCarton = totalCharge>0 && totalCartons>0 && cartons>0
-      ? (totalCharge / totalCartons) * cbmPerCarton
+    const freightPerCarton = totalCharge>0 && cbmDivisor>0 && cartons>0
+      ? (totalCharge / cbmDivisor) * cbmPerCarton
       : 0;
     const dutyPerCarton = (audPricePerCarton+freightPerCarton) * (dutyPct/100);
     const landedCostPerCarton = audPricePerCarton + freightPerCarton + dutyPerCarton;

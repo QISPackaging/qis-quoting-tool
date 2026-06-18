@@ -305,7 +305,7 @@ test('edits and duplicates an existing quote', async ({ page }) => {
 test('supports product search auto-fill for line items', async ({ page }) => {
   await mockQuotesApi(page);
 
-  await page.goto('/');
+  await page.goto(appPath);
   await page.locator('#line-items-body input[data-field="sku"]').first().fill('1000TUBE100UM');
   await expect(page.locator('.product-dropdown')).toHaveClass(/show/);
   await page.locator('.product-dropdown .pd-item').first().click();

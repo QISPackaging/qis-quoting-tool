@@ -2495,13 +2495,17 @@ function renderReportingSummary(counts){
 function renderReportingChart(counts){
   const canvas=document.getElementById('reporting-chart');
   if(!canvas) return;
+  // Don't let a charting-library failure (e.g. blocked CDN) blank the numeric report.
+  if(typeof Chart==='undefined') return;
   const data=[counts.won,counts.lost,counts.pending,counts.withdrawn];
   if(reportingChart){
     reportingChart.data.datasets[0].data=data;
     reportingChart.update();
     return;
   }
-  reportingChart=new Chart(canvas,{type:'pie',data:{labels:['Won','Lost','Pending','Withdrawn'],datasets:[{data,backgroundColor:['#639922','#E24B4A','#E6F1FB','#f5f5f3'],borderColor:['#fff','#fff','#fff','#fff'],borderWidth:1}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{boxWidth:12,padding:16}}}}});
+  try{
+    reportingChart=new Chart(canvas,{type:'pie',data:{labels:['Won','Lost','Pending','Withdrawn'],datasets:[{data,backgroundColor:['#639922','#E24B4A','#E6F1FB','#f5f5f3'],borderColor:['#fff','#fff','#fff','#fff'],borderWidth:1}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{boxWidth:12,padding:16}}}}});
+  }catch(e){/* chart is non-essential; summary and metrics still render */}
 }
 
 function renderReportingMetrics(data){

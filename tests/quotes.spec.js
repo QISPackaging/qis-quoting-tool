@@ -482,3 +482,80 @@ test('scrolls to the top when a quote is saved successfully', async ({ page }) =
   await expect(page.locator('#toast')).toContainText('Quote saved successfully');
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
 });
+
+test.describe('mobile viewport (375px)', () => {
+  test.use({ viewport: { width: 375, height: 800 } });
+
+  test('renders line items as labeled cards instead of a table header', async ({ page }) => {
+    await mockQuotesApi(page);
+    await page.goto(appPath);
+
+    const lineItemsTable = page.locator('#line-items-body').locator('xpath=ancestor::table[1]');
+    await expect(lineItemsTable.locator('thead')).not.toBeVisible();
+
+    const firstRow = page.locator('#line-items-body tr:not(.line-slider-row)').first();
+    const skuCell = firstRow.locator('td').filter({ has: page.locator('input[data-field="sku"]') });
+    await expect(skuCell).toHaveAttribute('data-label', 'SKU');
+
+    const qtyCell = firstRow.locator('td').filter({ has: page.locator('input[data-field="qty"]') });
+    await expect(qtyCell).toHaveAttribute('data-label', 'Qty');
+    const costCell = firstRow.locator('td').filter({ has: page.locator('input[data-field="cost"]') });
+    await expect(costCell).toHaveAttribute('data-label', 'Cost ($)');
+    const sellCell = firstRow.locator('td').filter({ has: page.locator('input[data-field="sell"]') });
+    await expect(sellCell).toHaveAttribute('data-label', 'Sell ($)');
+  });
+
+  test('touch targets meet the 44px minimum height', async ({ page }) => {
+    await mockQuotesApi(page);
+    await page.goto(appPath);
+
+    const skuInput = page.locator('#line-items-body input[data-field="sku"]').first();
+    const skuBox = await skuInput.boundingBox();
+    expect(skuBox.height).toBeGreaterThanOrEqual(44);
+
+    const saveBtn = page.locator('#save-btn');
+    const saveBox = await saveBtn.boundingBox();
+    expect(saveBox.height).toBeGreaterThanOrEqual(44);
+
+    const tab = page.locator('button.tab', { hasText: 'Saved quotes' });
+    const tabBox = await tab.boundingBox();
+    expect(tabBox.height).toBeGreaterThanOrEqual(44);
+  });
+
+  test('product search dropdown stays within the viewport', async ({ page }) => {
+    await mockQuotesApi(page);
+    await page.goto(appPath);
+
+    const skuInput = page.locator('#line-items-body input[data-field="sku"]').first();
+    await skuInput.fill('1000TUBE');
+
+    const dd = page.locator('.product-dropdown.show').first();
+    await expect(dd).toBeVisible();
+    const box = await dd.boundingBox();
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(375 + 1);
+  });
+
+  test('tab bar scrolls horizontally without wrapping', async ({ page }) => {
+    await mockQuotesApi(page);
+    await page.goto(appPath);
+
+    const tabs = page.locator('.tabs');
+    const overflowX = await tabs.evaluate(el => getComputedStyle(el).overflowX);
+    expect(overflowX).toBe('auto');
+
+    const tabTops = await page.locator('.tabs .tab').evaluateAll(
+      els => els.map(el => el.getBoundingClientRect().top)
+    );
+    const uniqueTops = new Set(tabTops.map(t => Math.round(t)));
+    expect(uniqueTops.size).toBe(1);
+  });
+
+  test('page does not scroll horizontally on mobile', async ({ page }) => {
+    await mockQuotesApi(page);
+    await page.goto(appPath);
+
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    expect(overflow).toBeLessThanOrEqual(1);
+  });
+});

@@ -409,3 +409,76 @@ test('updates a quote status from the saved quotes list', async ({ page }) => {
 
   await expect(page.locator('#toast')).toContainText('Status updated to won');
 });
+
+test('drags a line item to reorder it and preserves the order on save', async ({ page }) => {
+  const state = { quotes: [] };
+  await mockQuotesApi(page, state);
+
+  await page.goto(appPath);
+  await page.locator('#business-name').fill('Reorder Co');
+  await page.locator('#rep').selectOption('Jack');
+  await page.locator('#status').selectOption('pending');
+
+  await page.locator('#line-items-body input[data-field="sku"]').nth(0).fill('FIRST');
+  await page.locator('#add-line-btn').click();
+  await page.locator('#line-items-body input[data-field="sku"]').nth(1).fill('SECOND');
+
+  const rows = page.locator('#line-items-body tr:not(.line-slider-row)');
+  await expect(rows).toHaveCount(2);
+  await expect(rows.nth(0).locator('.drag-handle')).toBeVisible();
+
+  const firstHandle = rows.nth(0).locator('.drag-handle-cell');
+  const secondRow = rows.nth(1);
+  const firstBox = await firstHandle.boundingBox();
+  const secondBox = await secondRow.boundingBox();
+
+  await page.mouse.move(firstBox.x + firstBox.width / 2, firstBox.y + firstBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(secondBox.x + secondBox.width / 2, secondBox.y + secondBox.height / 2, { steps: 5 });
+  await rows.nth(1).dispatchEvent('drop');
+  await page.mouse.up();
+
+  await expect(page.locator('#line-items-body input[data-field="sku"]').nth(0)).toHaveValue('SECOND');
+  await expect(page.locator('#line-items-body input[data-field="sku"]').nth(1)).toHaveValue('FIRST');
+
+  await page.locator('#save-btn').click();
+  await expect(page.locator('#toast')).toContainText('Quote saved successfully');
+
+  const savedLines = JSON.parse(state.quotes[0].line_items);
+  expect(savedLines[0].sku).toBe('SECOND');
+  expect(savedLines[1].sku).toBe('FIRST');
+});
+
+test('scrolls to the top and shows a toast when a required field is missing', async ({ page }) => {
+  await mockQuotesApi(page);
+
+  await page.goto(appPath);
+  await page.evaluate(() => window.scrollTo(0, 800));
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+
+  await page.locator('#line-items-body input[data-field="sku"]').first().fill('NOFIELDS');
+  await page.locator('#save-btn').click();
+
+  await expect(page.locator('#toast')).toContainText('Please enter a business name before saving');
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+});
+
+test('scrolls to the top when a quote is saved successfully', async ({ page }) => {
+  await mockQuotesApi(page);
+
+  await page.goto(appPath);
+  await page.locator('#business-name').fill('Scroll Co');
+  await page.locator('#rep').selectOption('Jack');
+  await page.locator('#status').selectOption('pending');
+  await page.locator('#line-items-body input[data-field="sku"]').first().fill('SCROLLSKU');
+  await page.locator('#line-items-body input[data-field="qty"]').first().fill('1');
+  await page.locator('#line-items-body input[data-field="cost"]').first().fill('10');
+  await page.locator('#line-items-body input[data-field="sell"]').first().fill('20');
+
+  await page.evaluate(() => window.scrollTo(0, 800));
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+
+  await page.locator('#save-btn').click();
+  await expect(page.locator('#toast')).toContainText('Quote saved successfully');
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+});

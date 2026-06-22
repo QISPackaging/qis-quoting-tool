@@ -24,6 +24,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .cbm-calc-cell .cbm-field input{width:60px;font-size:13px;padding:4px 5px;height:30px;text-align:center;border:1px solid #ccc;border-radius:5px}
 .cbm-calc-cell .cbm-x{font-size:13px;color:#999;padding-bottom:7px}
 .cbm-calc-cell .unit-btn{font-size:10px;padding:2px 5px;height:24px;border-radius:5px;border:1px solid #e0e0e0;background:#f5f5f3;cursor:pointer;white-space:nowrap}
+.drag-handle-cell{text-align:center;cursor:grab;width:24px}
+.drag-handle{color:#aaa;font-size:15px;user-select:none}
+#line-items-body tr.dragging{opacity:0.4}
+#line-items-body tr.drag-over{box-shadow:inset 0 2px 0 0 #0C447C}
 .capacity-banner{font-size:12px;padding:6px 10px;border-radius:8px;margin-top:8px;background:#EAF3DE;border:1px solid #C0DD97;color:#27500A}
 .capacity-banner.over{background:#FCEBEB;border-color:#F7C1C1;color:#791F1F}
 .shipments-row{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:#f5f5f3;border:1px solid #e8e8e8;border-radius:8px;margin-bottom:6px}
@@ -336,6 +340,7 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
   <div class="line-wrap">
   <table class="line-table">
     <thead><tr>
+      <th style="width:24px" class="no-print"></th>
       <th style="width:90px">SKU</th>
       <th style="min-width:180px">Description</th>
       <th style="width:80px">Qty</th>
@@ -1241,6 +1246,7 @@ const H={'Content-Type':'application/json','apikey':SKEY,'Authorization':'Bearer
 
 let lineItems=[];
 let followups=[];
+let _draggedLineId=null;
 // FIX B4: start lineId at a random large offset so IDs never collide with
 // IDs from a previous session's saved line_items JSON
 let lineId=Math.floor(Math.random()*1000000);
@@ -1363,6 +1369,45 @@ function renderLines(){
     const tS=item.sell*item.qty;
     const tG=(item.sell-item.cost)*item.qty;
     const tr=document.createElement('tr');
+    tr.draggable=true;
+    tr.dataset.lineId=item.id;
+    const dragTd=document.createElement('td');
+    dragTd.className='no-print drag-handle-cell';
+    const dragHandle=document.createElement('span');
+    dragHandle.className='drag-handle';
+    dragHandle.textContent='≡';
+    dragHandle.setAttribute('aria-label','Drag to reorder');
+    dragTd.appendChild(dragHandle);
+    tr.appendChild(dragTd);
+    tr.addEventListener('dragstart',e=>{
+      _draggedLineId=item.id;
+      tr.classList.add('dragging');
+      e.dataTransfer.effectAllowed='move';
+    });
+    tr.addEventListener('dragend',()=>{
+      tr.classList.remove('dragging');
+      _draggedLineId=null;
+    });
+    tr.addEventListener('dragover',e=>{
+      e.preventDefault();
+      if(_draggedLineId==null||_draggedLineId===item.id)return;
+      tr.classList.add('drag-over');
+    });
+    tr.addEventListener('dragleave',()=>{
+      tr.classList.remove('drag-over');
+    });
+    tr.addEventListener('drop',e=>{
+      e.preventDefault();
+      tr.classList.remove('drag-over');
+      if(_draggedLineId==null||_draggedLineId===item.id)return;
+      const fromIdx=lineItems.findIndex(l=>l.id===_draggedLineId);
+      const toIdx=lineItems.findIndex(l=>l.id===item.id);
+      if(fromIdx===-1||toIdx===-1)return;
+      const [moved]=lineItems.splice(fromIdx,1);
+      lineItems.splice(toIdx,0,moved);
+      renderLines();
+      updateSummary();
+    });
     tr.appendChild(makeTextCell(item,rowIdx,'sku','SKU'));
     tr.appendChild(makeTextCell(item,rowIdx,'desc','Description'));
     tr.appendChild(makeNumCell(item,rowIdx,'qty',2,0,1,'0'));
@@ -1414,7 +1459,7 @@ function renderLines(){
     sliderTr.dataset.sliderRow=item.id;
     const sliderTd=document.createElement('td');
     sliderTd.className='line-slider-cell';
-    sliderTd.colSpan=9;
+    sliderTd.colSpan=10;
     const inner=document.createElement('div');
     inner.className='line-slider-inner';
     const lsLabel=document.createElement('span');
@@ -2222,22 +2267,26 @@ function deleteTemplate(id){
 
 // ─── Save quote ───────────────────────────────────────────────────────────────
 
+function scrollToTop(){
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
 async function saveQuote(){
   const status=document.getElementById('status').value;
   if(!document.getElementById('business-name').value){
-    showToast('Please enter a business name before saving','error');return;
+    scrollToTop();showToast('Please enter a business name before saving','error');return;
   }
   if(!document.getElementById('rep').value){
-    showToast('Please select a rep before saving','error');return;
+    scrollToTop();showToast('Please select a rep before saving','error');return;
   }
-  if(!status){showToast('Please select a status before saving','error');return;}
+  if(!status){scrollToTop();showToast('Please select a status before saving','error');return;}
   if(status==='lost'&&!document.getElementById('lost-reason').value){
-    showToast('Please select a lost reason','error');return;
+    scrollToTop();showToast('Please select a lost reason','error');return;
   }
 
   // FIX L3: validLines used for both the warning check and all calculations
   const validLines=getValidLines();
-  if(!validLines.length){showToast('Please add at least one line item','error');return;}
+  if(!validLines.length){scrollToTop();showToast('Please add at least one line item','error');return;}
 
   const warnEl=document.getElementById('line-warn');
   const incomplete=validLines.filter(l=>l.sell===0||l.cost===0||l.qty===0);
@@ -2321,6 +2370,7 @@ async function saveQuote(){
     }
     clearTimeout(tout);
     if(res.ok){
+      scrollToTop();
       showToast(_editingId?'Quote updated successfully':'Quote saved successfully','success');
       document.getElementById('line-warn').className='warn-banner';
       _savedOnce=true;

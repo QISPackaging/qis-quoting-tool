@@ -167,26 +167,27 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
 .warn-banner{display:none;background:#FAEEDA;border:1px solid #FAC775;border-radius:8px;padding:8px 12px;font-size:12px;color:#633806;margin-bottom:0.75rem}
 .warn-banner.show{display:block}
 @media print{
-  @page{size:A4;margin:14mm}
-  body{background:#fff;padding:0;font-size:13px}
+  @page{size:A4;margin:1.5cm}
+  body{background:#fff;padding:0;font-size:12pt}
   .no-print{display:none!important}
   .print-only{display:block!important}
-  .container{max-width:100%}
-  .section{border:1px solid #ccc;break-inside:avoid;padding:14px}
-  .section-title{font-size:15px}
+  .container{max-width:100%;width:100%}
+  .section{border:1px solid #ccc;break-inside:avoid;padding:16px}
+  .section-title{font-size:16pt}
   .summary-cards{break-inside:avoid}
-  .field label{font-size:12px}
-  .field input,.field select,.field textarea{font-size:14px;border:none;padding:2px 0}
-  .line-table{font-size:14px}
-  .line-table th{font-size:12px;padding:8px 6px}
-  .line-table td{padding:8px 6px}
-  .line-table input{font-size:14px;border:none;background:transparent;height:auto;padding:2px 0}
-  .quote-totals{font-size:15px;border:2px solid #1a1a1a;padding:12px 16px;margin-top:1rem}
-  .quote-totals-row{padding:4px 0}
-  .quote-totals-row.total{font-size:19px;font-weight:700}
-  #print-header{margin-bottom:1rem}
-  #print-quote-number{font-size:20px}
-  #print-date,#print-rep{font-size:14px}
+  .field label{font-size:11pt}
+  .field input,.field select,.field textarea{font-size:13pt;border:none;padding:2px 0}
+  .line-table{font-size:11pt;width:100%}
+  .line-table th{font-size:11pt;padding:10px 6px}
+  .line-table td{padding:10px 6px}
+  .line-table input{font-size:11pt;border:none;background:transparent;height:auto;padding:2px 0}
+  .quote-totals{font-size:16pt;border:2px solid #1a1a1a;padding:16px 20px;margin-top:1rem}
+  .quote-totals-row{padding:6px 0}
+  .quote-totals-row.total{font-size:24pt;font-weight:700}
+  #print-header{margin-bottom:1.25rem}
+  #print-header div[style*="font-size:22px"]{font-size:24pt!important}
+  #print-quote-number{font-size:18pt}
+  #print-date,#print-rep{font-size:13pt}
 }
 .print-only{display:none}
 /* Per-line GP slider */
@@ -1726,8 +1727,10 @@ function updateSummary(){
   document.getElementById('sum-gp-pct').textContent=ogp.toFixed(1)+'%';
 
   const col=valid.length===0?'':getColor(ogp);
-  ['sum-card1','sum-card2','sum-card3'].forEach(id=>
-    document.getElementById(id).className='card'+(col?' '+col:''));
+  ['sum-card1','sum-card2','sum-card3'].forEach(id=>{
+    const noPrint=id!=='sum-card1'?' no-print':'';
+    document.getElementById(id).className='card'+noPrint+(col?' '+col:'');
+  });
 
   const banner=document.getElementById('approval-banner');
   if(col==='red'&&tS>0){

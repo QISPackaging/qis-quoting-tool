@@ -167,12 +167,26 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
 .warn-banner{display:none;background:#FAEEDA;border:1px solid #FAC775;border-radius:8px;padding:8px 12px;font-size:12px;color:#633806;margin-bottom:0.75rem}
 .warn-banner.show{display:block}
 @media print{
-  body{background:#fff;padding:0}
+  @page{size:A4;margin:14mm}
+  body{background:#fff;padding:0;font-size:13px}
   .no-print{display:none!important}
   .print-only{display:block!important}
   .container{max-width:100%}
-  .section{border:1px solid #ccc;break-inside:avoid}
+  .section{border:1px solid #ccc;break-inside:avoid;padding:14px}
+  .section-title{font-size:15px}
   .summary-cards{break-inside:avoid}
+  .field label{font-size:12px}
+  .field input,.field select,.field textarea{font-size:14px;border:none;padding:2px 0}
+  .line-table{font-size:14px}
+  .line-table th{font-size:12px;padding:8px 6px}
+  .line-table td{padding:8px 6px}
+  .line-table input{font-size:14px;border:none;background:transparent;height:auto;padding:2px 0}
+  .quote-totals{font-size:15px;border:2px solid #1a1a1a;padding:12px 16px;margin-top:1rem}
+  .quote-totals-row{padding:4px 0}
+  .quote-totals-row.total{font-size:19px;font-weight:700}
+  #print-header{margin-bottom:1rem}
+  #print-quote-number{font-size:20px}
+  #print-date,#print-rep{font-size:14px}
 }
 .print-only{display:none}
 /* Per-line GP slider */
@@ -376,22 +390,23 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
       <th style="width:130px">SKU</th>
       <th style="min-width:180px">Description</th>
       <th style="width:80px">Qty</th>
-      <th style="width:90px">Cost ($)</th>
+      <th style="width:90px" class="no-print">Cost ($)</th>
       <th style="width:90px">Sell ($)</th>
-      <th style="width:55px">GP%</th>
+      <th style="width:55px" class="no-print">GP%</th>
       <th style="width:85px">Total sell</th>
-      <th style="width:85px">Total GP</th>
+      <th style="width:85px" class="no-print">Total GP</th>
       <th style="width:28px" class="no-print"></th>
     </tr></thead>
     <tbody id="line-items-body"></tbody>
   </table>
   </div>
   <button class="add-btn no-print" id="add-line-btn" onclick="addLine()">+ Add line item</button>
+  <button class="add-btn no-print" id="clear-lines-btn" onclick="clearAllLines()">Clear all lines</button>
 
   <div class="summary-cards" style="margin-top:1rem">
     <div class="card" id="sum-card1"><div class="clabel">Total sell</div><div class="cval" id="sum-sell">$0.00</div></div>
-    <div class="card" id="sum-card2"><div class="clabel">Total GP $</div><div class="cval" id="sum-gp">$0.00</div></div>
-    <div class="card" id="sum-card3"><div class="clabel">Overall GP%</div><div class="cval" id="sum-gp-pct">0.0%</div></div>
+    <div class="card no-print" id="sum-card2"><div class="clabel">Total GP $</div><div class="cval" id="sum-gp">$0.00</div></div>
+    <div class="card no-print" id="sum-card3"><div class="clabel">Overall GP%</div><div class="cval" id="sum-gp-pct">0.0%</div></div>
   </div>
 
   <!-- Quote totals — subtotal, GST, total inc GST -->
@@ -511,6 +526,7 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
   <button class="new-btn" id="new-btn" onclick="confirmNewQuote()">New quote</button>
   <button class="new-btn" id="save-template-btn" onclick="openSaveTemplateDialog()">Save as template</button>
   <button class="new-btn" id="load-template-btn" onclick="openLoadTemplateDialog()">Load template</button>
+  <button class="new-btn" id="copy-summary-btn" onclick="copyQuoteSummary()">Copy summary</button>
   <button class="pdf-btn" onclick="generatePDF()">Print / PDF</button>
   <button class="save-btn" id="save-btn" onclick="saveQuote()">Save quote</button>
 </div>
@@ -632,6 +648,7 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
         </thead>
         <tbody id="landed-product-body"></tbody>
       </table>
+      <div id="landed-empty-state" class="empty-state" style="display:none">Add a product to get started</div>
     </div>
     <button class="add-btn no-print" id="add-landed-btn" onclick="addLandedProduct()">+ Add product</button>
     <div class="quote-totals" style="margin-top:1rem">
@@ -662,7 +679,9 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
     </select>
     <input type="text" id="filter-customer" placeholder="Search business..." oninput="debounceLoad()" style="width:180px">
     <input type="text" id="filter-rep" placeholder="Search rep..." oninput="debounceLoad()" style="width:140px">
+    <button class="new-btn" id="clear-filters-btn" onclick="clearQuoteFilters()">Clear filters</button>
   </div>
+  <div id="quotes-count" style="font-size:12px;color:#888;margin-bottom:0.5rem"></div>
   <div class="legend" id="quotes-legend" style="justify-content:flex-start;border-top:none;padding:0 0 0.75rem">
     <div class="legend-item"><span class="overdue-dot" style="margin-left:0"></span><span>Overdue follow-up (pending quote, follow-up date in the past)</span></div>
     <div class="legend-item"><span>Tab badge — e.g. "Saved quotes (1)" — shows the number of quotes with an overdue follow-up</span></div>
@@ -923,7 +942,13 @@ function getLandedTotalCbm(){
   },0);
 }
 
+function updateLandedEmptyState(){
+  const hasRows=document.getElementById('landed-product-body').children.length>0;
+  document.getElementById('landed-empty-state').style.display=hasRows?'none':'block';
+}
+
 function updateLandedCalculator(){
+  updateLandedEmptyState();
   const mode=document.getElementById('landed-ship-mode').value;
   const port=document.getElementById('landed-origin-port').value;
   const exchangeRate=parseMoney(document.getElementById('landed-exchange-rate').value) || 1;
@@ -1393,6 +1418,18 @@ async function removeLine(id){
   updateSummary();
 }
 
+async function clearAllLines(){
+  document.getElementById('remove-title').textContent='Clear all lines?';
+  document.getElementById('remove-desc').textContent='Are you sure you want to clear all lines? This cannot be undone.';
+  document.getElementById('remove-confirm').textContent='Clear all';
+  const confirmed=await openDialog('remove-overlay','remove-confirm','remove-cancel');
+  if(!confirmed)return;
+  lineItems=[];
+  renderLines();
+  updateSummary();
+  addLine();
+}
+
 function renderLines(){
   const tbody=document.getElementById('line-items-body');
   tbody.innerHTML='';
@@ -1446,7 +1483,7 @@ function renderLines(){
     tr.appendChild(makeNumCell(item,rowIdx,'cost',3,0,0.01,'0.00','Cost ($)'));
     tr.appendChild(makeNumCell(item,rowIdx,'sell',4,0,0.01,'0.00','Sell ($)'));
     const gpTd=document.createElement('td');
-    gpTd.className='gp-cell';gpTd.dataset.gpCell=item.id;gpTd.dataset.label='GP%';
+    gpTd.className='gp-cell no-print';gpTd.dataset.gpCell=item.id;gpTd.dataset.label='GP%';
     gpTd.style.cssText=gpStyle(gp);
     gpTd.textContent=item.sell>0?gp.toFixed(1)+'%':'—';
     tr.appendChild(gpTd);
@@ -1455,7 +1492,7 @@ function renderLines(){
     tsTd.textContent=fmtCurrency(tS);
     tr.appendChild(tsTd);
     const tgTd=document.createElement('td');
-    tgTd.className='tot-cell';tgTd.dataset.tgCell=item.id;tgTd.dataset.label='Total GP';
+    tgTd.className='tot-cell no-print';tgTd.dataset.tgCell=item.id;tgTd.dataset.label='Total GP';
     tgTd.style.cssText=gpStyle(gp);
     tgTd.textContent=fmtCurrency(tG);
     tr.appendChild(tgTd);
@@ -1579,6 +1616,7 @@ function makeTextCell(item,rowIdx,field,placeholder){
 function makeNumCell(item,rowIdx,field,colIdx,min,step,placeholder,label){
   const td=document.createElement('td');
   td.dataset.label=label;
+  if(field==='cost')td.className='no-print';
   const inp=document.createElement('input');
   inp.type='number';inp.value=item[field]||'';inp.placeholder=placeholder;
   inp.min=min;inp.step=step;inp.style.textAlign='right';
@@ -1778,6 +1816,23 @@ document.getElementById('status').addEventListener('change',function(){
     document.getElementById('date-outcome').value=t;
   if(this.value==='won'&&!document.getElementById('date-won').value)
     document.getElementById('date-won').value=t;
+});
+
+document.getElementById('quote-number').addEventListener('blur',function(){
+  const raw=this.value.trim();
+  if(!raw)return;
+  const digits=raw.replace(/\D/g,'');
+  if(!digits)return;
+  this.value='SQ-'+digits.padStart(8,'0');
+});
+
+document.addEventListener('keydown',function(e){
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='s'){
+    if(document.getElementById('tab-calculator').classList.contains('active')){
+      e.preventDefault();
+      saveQuote();
+    }
+  }
 });
 
 document.getElementById('counter-made').addEventListener('change',function(){
@@ -2139,6 +2194,19 @@ function resetForm(){
 
 // ─── PDF / Print ──────────────────────────────────────────────────────────────
 
+function copyQuoteSummary(){
+  const biz=document.getElementById('business-name').value||'—';
+  const qn=document.getElementById('quote-number').value||'—';
+  const totalIncGst=document.getElementById('total-inc-gst').textContent||'$0.00';
+  const gp=document.getElementById('sum-gp-pct').textContent||'0.0%';
+  const summary=`Business: ${biz}\nQuote #: ${qn}\nTotal (inc GST): ${totalIncGst}\nOverall GP%: ${gp}`;
+  navigator.clipboard.writeText(summary).then(()=>{
+    showToast('Quote summary copied to clipboard','success');
+  }).catch(()=>{
+    showToast('Could not copy to clipboard','error');
+  });
+}
+
 function generatePDF(){
   const qn=document.getElementById('quote-number').value;
   const rep=document.getElementById('rep').value;
@@ -2447,6 +2515,24 @@ function debounceLoad(){clearTimeout(_debTimer);_debTimer=setTimeout(loadQuotes,
 let _cachedQuotes=[];
 let reportingChart=null;
 let _editingId=null; // ID of quote currently being edited (null = new quote)
+let _sortField=null;
+let _sortDir=1;
+
+function clearQuoteFilters(){
+  document.getElementById('filter-status').value='';
+  document.getElementById('filter-gp').value='';
+  document.getElementById('filter-customer').value='';
+  document.getElementById('filter-rep').value='';
+  loadQuotes();
+}
+
+const QUOTES_SORT_FIELDS={'Date':'quote_date','Business':'business_name','Total sell':'sell_price','GP%':'gp_percent','Status':'status'};
+
+function sortQuotesBy(field){
+  if(_sortField===field)_sortDir*=-1;
+  else{_sortField=field;_sortDir=1;}
+  loadQuotes();
+}
 
 async function loadQuotes(){
   updateSavedQuotesTabLabel(0);
@@ -2473,7 +2559,23 @@ async function loadQuotes(){
     else if(fg==='amber')data=data.filter(q=>(q.gp_percent||0)>=GP_RED&&(q.gp_percent||0)<GP_AMBER);
     else if(fg==='green')data=data.filter(q=>(q.gp_percent||0)>=GP_AMBER);
 
+    if(_sortField){
+      data=[...data].sort((a,b)=>{
+        let av=a[_sortField],bv=b[_sortField];
+        if(typeof av==='string'||typeof bv==='string'){
+          av=(av||'').toString().toLowerCase();bv=(bv||'').toString().toLowerCase();
+        } else {
+          av=av||0;bv=bv||0;
+        }
+        if(av<bv)return -1*_sortDir;
+        if(av>bv)return 1*_sortDir;
+        return 0;
+      });
+    }
+
     renderCustomerHistory(fc,_cachedQuotes);
+
+    document.getElementById('quotes-count').textContent='Showing '+data.length+' quote'+(data.length===1?'':'s');
 
     if(!data.length){container.innerHTML='<div class="empty-state">No quotes found</div>';return;}
 
@@ -2482,8 +2584,17 @@ async function loadQuotes(){
     const table=document.createElement('table');table.className='quotes-table';
     const thead=document.createElement('thead');
     const hrow=document.createElement('tr');
-    ['Quote #','Date','Business','Contact','Rep','Total sell','Freight','GP%','Status','Actions'].forEach(h=>{
-      const th=document.createElement('th');th.textContent=h;hrow.appendChild(th);
+    ['Quote #','Date','Business','Contact','Rep','Total sell','Freight (inc GST)','GP%','Status','Actions'].forEach(h=>{
+      const th=document.createElement('th');
+      const sortField=QUOTES_SORT_FIELDS[h];
+      th.textContent=h;
+      if(sortField){
+        th.style.cursor='pointer';
+        th.dataset.sortField=sortField;
+        if(_sortField===sortField)th.textContent+=_sortDir===1?' ▲':' ▼';
+        th.addEventListener('click',()=>sortQuotesBy(sortField));
+      }
+      hrow.appendChild(th);
     });
     thead.appendChild(hrow);table.appendChild(thead);
     const tbody=document.createElement('tbody');

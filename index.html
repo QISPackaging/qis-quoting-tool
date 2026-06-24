@@ -98,8 +98,10 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
 .toast.success{display:block;background:#EAF3DE;color:#27500A;border:1px solid #C0DD97}
 .toast.error{display:block;background:#FCEBEB;color:#791F1F;border:1px solid #F7C1C1}
 .line-wrap{overflow-x:auto;margin-bottom:10px}
-.line-table{width:100%;border-collapse:collapse;font-size:13px;min-width:750px}
-.line-table th{text-align:left;padding:6px 8px;font-size:11px;font-weight:500;color:#888;border-bottom:1px solid #e8e8e8;white-space:nowrap}
+.line-table{width:100%;border-collapse:collapse;font-size:13px;min-width:750px;table-layout:fixed}
+.line-table th{text-align:left;padding:6px 8px;font-size:11px;font-weight:500;color:#888;border-bottom:1px solid #e8e8e8;white-space:nowrap;position:relative}
+.col-resize-handle{position:absolute;top:0;right:0;width:8px;height:100%;cursor:col-resize;touch-action:none;z-index:5}
+.col-resize-handle:hover,.col-resize-handle.resizing{background:rgba(26,26,26,0.15)}
 .line-table td{padding:4px 4px;vertical-align:middle}
 .line-table input{font-size:13px;padding:5px 8px;height:32px;width:100%;border:1px solid #e0e0e0;border-radius:6px;background:#fff;outline:none;transition:border-color 0.15s,box-shadow 0.15s}
 .line-table input:focus{border-color:#888;box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
@@ -400,8 +402,8 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
   <table class="line-table">
     <thead><tr>
       <th style="width:24px" class="no-print"></th>
-      <th style="width:170px">SKU</th>
-      <th style="min-width:260px">Description</th>
+      <th id="col-th-sku" style="width:170px">SKU<div class="col-resize-handle" data-col="col-th-sku"></div></th>
+      <th id="col-th-desc" style="width:260px">Description<div class="col-resize-handle" data-col="col-th-desc"></div></th>
       <th style="width:80px">Qty</th>
       <th style="width:90px" class="no-print gp-field">Cost ($)</th>
       <th style="width:90px">Sell ($)</th>
@@ -3036,6 +3038,27 @@ async function patchQuoteStatus(id,newStatus){
   }
   finally{_patchInProgress=false;}
 }
+
+document.querySelectorAll('.col-resize-handle').forEach(handle=>{
+  handle.addEventListener('mousedown',e=>{
+    e.preventDefault();
+    const th=document.getElementById(handle.dataset.col);
+    const startX=e.clientX;
+    const startWidth=th.getBoundingClientRect().width;
+    handle.classList.add('resizing');
+    function onMove(ev){
+      const newWidth=Math.max(60,startWidth+(ev.clientX-startX));
+      th.style.width=newWidth+'px';
+    }
+    function onUp(){
+      handle.classList.remove('resizing');
+      document.removeEventListener('mousemove',onMove);
+      document.removeEventListener('mouseup',onUp);
+    }
+    document.addEventListener('mousemove',onMove);
+    document.addEventListener('mouseup',onUp);
+  });
+});
 </script>
 </body>
 </html>

@@ -103,8 +103,6 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
 .line-table td{padding:4px 4px;vertical-align:middle}
 .line-table input{font-size:13px;padding:5px 8px;height:32px;width:100%;border:1px solid #e0e0e0;border-radius:6px;background:#fff;outline:none;transition:border-color 0.15s,box-shadow 0.15s}
 .line-table input:focus{border-color:#888;box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
-.expand-wrap{position:relative}
-.expand-input:focus{position:absolute;top:0;left:0;z-index:50;min-width:260px;max-width:480px;width:max(100%,260px);box-shadow:0 4px 16px rgba(0,0,0,0.18)}
 .gp-cell{font-size:12px;font-weight:500;text-align:center;padding:4px 6px!important;white-space:nowrap}
 .tot-cell{font-size:12px;padding:4px 8px!important;white-space:nowrap}
 .remove-btn{background:none;border:none;cursor:pointer;color:#aaa;font-size:18px;padding:4px 8px;line-height:1}
@@ -239,7 +237,6 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
 @media (max-width:768px){
   body{padding:12px}
   .container{max-width:100%}
-  .expand-input:focus{position:static;min-width:0;max-width:100%;width:100%;box-shadow:none}
   .row2,.row3,.counter-fields.show,.computed-row,.summary-cards{grid-template-columns:1fr}
   .action-row{flex-direction:column}
   .field input,.field select,.field textarea,
@@ -403,8 +400,8 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
   <table class="line-table">
     <thead><tr>
       <th style="width:24px" class="no-print"></th>
-      <th style="width:130px">SKU</th>
-      <th style="min-width:180px">Description</th>
+      <th style="width:170px">SKU</th>
+      <th style="min-width:260px">Description</th>
       <th style="width:80px">Qty</th>
       <th style="width:90px" class="no-print gp-field">Cost ($)</th>
       <th style="width:90px">Sell ($)</th>
@@ -1604,10 +1601,8 @@ function makeTextCell(item,rowIdx,field,placeholder){
   if(field==='sku'){
     // SKU cell gets a product search dropdown
     const wrap=document.createElement('div');wrap.className='sku-wrap';
-    const expandWrap=document.createElement('div');expandWrap.className='expand-wrap';
     const inp=document.createElement('input');
     inp.type='text';inp.value=item[field];inp.placeholder=placeholder;
-    inp.className='expand-input';
     inp.dataset.id=item.id;inp.dataset.field=field;inp.autocomplete='off';
     inp.addEventListener('input',e=>{
       const it=lineItems.find(l=>l.id===item.id);
@@ -1625,15 +1620,12 @@ function makeTextCell(item,rowIdx,field,placeholder){
     });
     const dd=document.createElement('div');dd.className='product-dropdown';
     dd.dataset.ddFor=item.id;
-    expandWrap.appendChild(inp);
-    wrap.appendChild(expandWrap);wrap.appendChild(dd);
+    wrap.appendChild(inp);wrap.appendChild(dd);
     td.appendChild(wrap);
     return td;
   }
-  const expandWrap=document.createElement('div');expandWrap.className='expand-wrap';
   const inp=document.createElement('input');
   inp.type='text';inp.value=item[field];inp.placeholder=placeholder;
-  inp.className='expand-input';
   inp.dataset.id=item.id;inp.dataset.field=field;
   inp.addEventListener('input',e=>{
     const it=lineItems.find(l=>l.id===item.id);
@@ -1641,8 +1633,7 @@ function makeTextCell(item,rowIdx,field,placeholder){
     updateSummary();
   });
   inp.addEventListener('keydown',e=>lineKeyNav(e,rowIdx,field==='sku'?0:1));
-  expandWrap.appendChild(inp);
-  td.appendChild(expandWrap);
+  td.appendChild(inp);
   return td;
 }
 

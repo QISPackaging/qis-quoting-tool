@@ -167,28 +167,38 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
 .warn-banner{display:none;background:#FAEEDA;border:1px solid #FAC775;border-radius:8px;padding:8px 12px;font-size:12px;color:#633806;margin-bottom:0.75rem}
 .warn-banner.show{display:block}
 @media print{
-  @page{size:A4;margin:14mm}
-  body{background:#fff;padding:0;font-size:13px}
+  @page{size:A4;margin:1.5cm}
+  body{background:#fff;padding:0;font-size:14pt}
   .no-print{display:none!important}
   .print-only{display:block!important}
-  .container{max-width:100%}
-  .section{border:1px solid #ccc;break-inside:avoid;padding:14px}
-  .section-title{font-size:15px}
+  .container{max-width:100%;width:100%}
+  .section{border:1px solid #ccc;break-inside:avoid;padding:18px}
+  .section-title{font-size:18pt}
   .summary-cards{break-inside:avoid}
-  .field label{font-size:12px}
-  .field input,.field select,.field textarea{font-size:14px;border:none;padding:2px 0}
-  .line-table{font-size:14px}
-  .line-table th{font-size:12px;padding:8px 6px}
-  .line-table td{padding:8px 6px}
-  .line-table input{font-size:14px;border:none;background:transparent;height:auto;padding:2px 0}
-  .quote-totals{font-size:15px;border:2px solid #1a1a1a;padding:12px 16px;margin-top:1rem}
-  .quote-totals-row{padding:4px 0}
-  .quote-totals-row.total{font-size:19px;font-weight:700}
-  #print-header{margin-bottom:1rem}
-  #print-quote-number{font-size:20px}
-  #print-date,#print-rep{font-size:14px}
+  .field label{font-size:12pt}
+  .field input,.field select,.field textarea{font-size:15pt;border:none;padding:2px 0}
+  .line-table{font-size:13pt;width:100%}
+  .line-table th{font-size:12pt;padding:12px 8px}
+  .line-table td{padding:12px 8px}
+  .line-table input{font-size:13pt;border:none;background:transparent;height:auto;padding:2px 0}
+  .quote-totals{font-size:18pt;border:2px solid #1a1a1a;padding:18px 22px;margin-top:1.2rem}
+  .quote-totals-row{padding:8px 0}
+  .quote-totals-row.total{font-size:30pt;font-weight:700}
+  #print-header{margin-bottom:1.5rem}
+  #print-header div[style*="font-size:22px"]{font-size:28pt!important}
+  #print-quote-number{font-size:20pt}
+  #print-date,#print-rep{font-size:14pt}
+  .gp-field{display:none!important}
+  .gp-internal-summary{display:none!important}
+  .internal-print-banner{display:none!important}
+  body.print-internal td.gp-field,body.print-internal th.gp-field{display:table-cell!important}
+  body.print-internal div.gp-field{display:block!important}
+  body.print-internal .gp-internal-summary{display:block!important;font-size:18pt;border:2px solid #791F1F;margin-top:1.2rem}
+  body.print-internal .internal-print-banner{display:block!important;font-size:16pt;font-weight:700;color:#791F1F;background:#FAEEDA;border:2px solid #791F1F;border-radius:8px;padding:10px 16px;margin-bottom:1rem;text-align:center}
 }
 .print-only{display:none}
+.internal-print-banner{display:none}
+.gp-internal-summary{display:none}
 /* Per-line GP slider */
 .line-slider-row{display:none;background:#fafaf9;border-top:1px solid #f0f0f0}
 .line-slider-row.show{display:table-row}
@@ -342,6 +352,9 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
 <div id="approval-banner" class="approval-banner" role="alert"></div>
 <div id="line-warn" class="warn-banner" role="alert"></div>
 
+<!-- Internal-only banner — shown only on "Print — Internal" -->
+<div class="internal-print-banner" id="internal-print-banner">INTERNAL — NOT FOR CUSTOMER</div>
+
 <!-- Print header (only shows when printing) -->
 <div class="print-only" id="print-header" style="margin-bottom:1.5rem;padding-bottom:1rem;border-bottom:2px solid #1a1a1a">
   <div style="display:flex;justify-content:space-between;align-items:flex-start">
@@ -390,11 +403,11 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
       <th style="width:130px">SKU</th>
       <th style="min-width:180px">Description</th>
       <th style="width:80px">Qty</th>
-      <th style="width:90px" class="no-print">Cost ($)</th>
+      <th style="width:90px" class="no-print gp-field">Cost ($)</th>
       <th style="width:90px">Sell ($)</th>
-      <th style="width:55px" class="no-print">GP%</th>
+      <th style="width:55px" class="no-print gp-field">GP%</th>
       <th style="width:85px">Total sell</th>
-      <th style="width:85px" class="no-print">Total GP</th>
+      <th style="width:85px" class="no-print gp-field">Total GP</th>
       <th style="width:28px" class="no-print"></th>
     </tr></thead>
     <tbody id="line-items-body"></tbody>
@@ -405,8 +418,8 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
 
   <div class="summary-cards" style="margin-top:1rem">
     <div class="card" id="sum-card1"><div class="clabel">Total sell</div><div class="cval" id="sum-sell">$0.00</div></div>
-    <div class="card no-print" id="sum-card2"><div class="clabel">Total GP $</div><div class="cval" id="sum-gp">$0.00</div></div>
-    <div class="card no-print" id="sum-card3"><div class="clabel">Overall GP%</div><div class="cval" id="sum-gp-pct">0.0%</div></div>
+    <div class="card no-print gp-field" id="sum-card2"><div class="clabel">Total GP $</div><div class="cval" id="sum-gp">$0.00</div></div>
+    <div class="card no-print gp-field" id="sum-card3"><div class="clabel">Overall GP%</div><div class="cval" id="sum-gp-pct">0.0%</div></div>
   </div>
 
   <!-- Quote totals — subtotal, GST, total inc GST -->
@@ -415,6 +428,12 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
     <div class="quote-totals-row"><span>GST (10%)</span><span id="total-gst">$0.00</span></div>
     <div class="quote-totals-row" id="freight-total-row" style="display:none"><span>Freight (inc GST)</span><span id="total-freight">$0.00</span></div>
     <div class="quote-totals-row total"><span>Total (inc GST)</span><span id="total-inc-gst">$0.00</span></div>
+  </div>
+
+  <!-- Internal-only GP summary — shown only on "Print — Internal" -->
+  <div class="quote-totals gp-internal-summary" id="gp-internal-summary">
+    <div class="quote-totals-row"><span>Total GP $</span><span id="internal-sum-gp">$0.00</span></div>
+    <div class="quote-totals-row"><span>Overall GP%</span><span id="internal-sum-gp-pct">0.0%</span></div>
   </div>
 
   <div class="freight-row no-print">
@@ -527,7 +546,8 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
   <button class="new-btn" id="save-template-btn" onclick="openSaveTemplateDialog()">Save as template</button>
   <button class="new-btn" id="load-template-btn" onclick="openLoadTemplateDialog()">Load template</button>
   <button class="new-btn" id="copy-summary-btn" onclick="copyQuoteSummary()">Copy summary</button>
-  <button class="pdf-btn" onclick="generatePDF()">Print / PDF</button>
+  <button class="pdf-btn" id="print-customer-btn" onclick="generatePDF('customer')">Print — Customer</button>
+  <button class="pdf-btn" id="print-internal-btn" onclick="generatePDF('internal')">Print — Internal</button>
   <button class="save-btn" id="save-btn" onclick="saveQuote()">Save quote</button>
 </div>
 </div><!-- end tab-calculator -->
@@ -1483,7 +1503,7 @@ function renderLines(){
     tr.appendChild(makeNumCell(item,rowIdx,'cost',3,0,0.01,'0.00','Cost ($)'));
     tr.appendChild(makeNumCell(item,rowIdx,'sell',4,0,0.01,'0.00','Sell ($)'));
     const gpTd=document.createElement('td');
-    gpTd.className='gp-cell no-print';gpTd.dataset.gpCell=item.id;gpTd.dataset.label='GP%';
+    gpTd.className='gp-cell no-print gp-field';gpTd.dataset.gpCell=item.id;gpTd.dataset.label='GP%';
     gpTd.style.cssText=gpStyle(gp);
     gpTd.textContent=item.sell>0?gp.toFixed(1)+'%':'—';
     tr.appendChild(gpTd);
@@ -1492,7 +1512,7 @@ function renderLines(){
     tsTd.textContent=fmtCurrency(tS);
     tr.appendChild(tsTd);
     const tgTd=document.createElement('td');
-    tgTd.className='tot-cell no-print';tgTd.dataset.tgCell=item.id;tgTd.dataset.label='Total GP';
+    tgTd.className='tot-cell no-print gp-field';tgTd.dataset.tgCell=item.id;tgTd.dataset.label='Total GP';
     tgTd.style.cssText=gpStyle(gp);
     tgTd.textContent=fmtCurrency(tG);
     tr.appendChild(tgTd);
@@ -1616,7 +1636,7 @@ function makeTextCell(item,rowIdx,field,placeholder){
 function makeNumCell(item,rowIdx,field,colIdx,min,step,placeholder,label){
   const td=document.createElement('td');
   td.dataset.label=label;
-  if(field==='cost')td.className='no-print';
+  if(field==='cost')td.className='no-print gp-field';
   const inp=document.createElement('input');
   inp.type='number';inp.value=item[field]||'';inp.placeholder=placeholder;
   inp.min=min;inp.step=step;inp.style.textAlign='right';
@@ -1726,8 +1746,13 @@ function updateSummary(){
   document.getElementById('sum-gp-pct').textContent=ogp.toFixed(1)+'%';
 
   const col=valid.length===0?'':getColor(ogp);
-  ['sum-card1','sum-card2','sum-card3'].forEach(id=>
-    document.getElementById(id).className='card'+(col?' '+col:''));
+  ['sum-card1','sum-card2','sum-card3'].forEach(id=>{
+    const noPrint=id!=='sum-card1'?' no-print gp-field':'';
+    document.getElementById(id).className='card'+noPrint+(col?' '+col:'');
+  });
+
+  document.getElementById('internal-sum-gp').textContent=fmtCurrency(tG);
+  document.getElementById('internal-sum-gp-pct').textContent=ogp.toFixed(1)+'%';
 
   const banner=document.getElementById('approval-banner');
   if(col==='red'&&tS>0){
@@ -2207,15 +2232,17 @@ function copyQuoteSummary(){
   });
 }
 
-function generatePDF(){
+function generatePDF(mode){
   const qn=document.getElementById('quote-number').value;
   const rep=document.getElementById('rep').value;
   const date=document.getElementById('quote-date').value;
   document.getElementById('print-quote-number').textContent=qn?'Quote '+qn:'Quote';
   document.getElementById('print-date').textContent=date?fmtDate(date):'';
   document.getElementById('print-rep').textContent=rep?'Rep: '+rep:'';
+  document.body.classList.toggle('print-internal',mode==='internal');
   window.print();
 }
+window.addEventListener('afterprint',()=>document.body.classList.remove('print-internal'));
 
 // ─── Load a quote into the calculator (for duplicate) ─────────────────────────
 

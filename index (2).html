@@ -81,9 +81,9 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
 .computed-box .cval{font-size:15px;font-weight:500;color:#1a1a1a}
 .tag{display:inline-block;font-size:11px;font-weight:500;padding:2px 8px;border-radius:6px;margin-left:6px;background:#FCEBEB;color:#A32D2D}
 .action-row{display:flex;gap:10px;margin-top:0.75rem}
-.save-btn{flex:1;padding:10px;font-size:14px;font-weight:500;cursor:pointer;border-radius:8px;background:#1a1a1a;color:#fff;border:none}
-.save-btn:hover{background:#333}
-.save-btn:focus{outline:none;box-shadow:0 0 0 3px rgba(26,26,26,0.2)}
+.save-btn{flex:1.6;padding:16px;font-size:17px;font-weight:700;cursor:pointer;border-radius:10px;background:#27500A;color:#fff;border:none;letter-spacing:0.2px;box-shadow:0 2px 8px rgba(39,80,10,0.35)}
+.save-btn:hover{background:#1f3f08}
+.save-btn:focus{outline:none;box-shadow:0 0 0 3px rgba(39,80,10,0.3)}
 .save-btn:disabled{opacity:0.5;cursor:not-allowed}
 .new-btn{padding:10px 20px;font-size:14px;font-weight:500;cursor:pointer;border-radius:8px;background:#f5f5f3;color:#1a1a1a;border:1px solid #e0e0e0;white-space:nowrap}
 .new-btn:hover{background:#eee}
@@ -103,6 +103,8 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
 .line-table td{padding:4px 4px;vertical-align:middle}
 .line-table input{font-size:13px;padding:5px 8px;height:32px;width:100%;border:1px solid #e0e0e0;border-radius:6px;background:#fff;outline:none;transition:border-color 0.15s,box-shadow 0.15s}
 .line-table input:focus{border-color:#888;box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
+.expand-wrap{position:relative}
+.expand-input:focus{position:absolute;top:0;left:0;z-index:50;min-width:260px;max-width:480px;width:max(100%,260px);box-shadow:0 4px 16px rgba(0,0,0,0.18)}
 .gp-cell{font-size:12px;font-weight:500;text-align:center;padding:4px 6px!important;white-space:nowrap}
 .tot-cell{font-size:12px;padding:4px 8px!important;white-space:nowrap}
 .remove-btn{background:none;border:none;cursor:pointer;color:#aaa;font-size:18px;padding:4px 8px;line-height:1}
@@ -237,6 +239,7 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
 @media (max-width:768px){
   body{padding:12px}
   .container{max-width:100%}
+  .expand-input:focus{position:static;min-width:0;max-width:100%;width:100%;box-shadow:none}
   .row2,.row3,.counter-fields.show,.computed-row,.summary-cards{grid-template-columns:1fr}
   .action-row{flex-direction:column}
   .field input,.field select,.field textarea,
@@ -1458,7 +1461,7 @@ function renderLines(){
     const tS=item.sell*item.qty;
     const tG=(item.sell-item.cost)*item.qty;
     const tr=document.createElement('tr');
-    tr.draggable=true;
+    tr.draggable=false;
     tr.dataset.lineId=item.id;
     const dragTd=document.createElement('td');
     dragTd.className='no-print drag-handle-cell';
@@ -1466,6 +1469,9 @@ function renderLines(){
     dragHandle.className='drag-handle';
     dragHandle.textContent='≡';
     dragHandle.setAttribute('aria-label','Drag to reorder');
+    dragTd.addEventListener('mousedown',()=>{tr.draggable=true;});
+    dragTd.addEventListener('mouseup',()=>{if(!tr.classList.contains('dragging'))tr.draggable=false;});
+    dragTd.addEventListener('touchstart',()=>{tr.draggable=true;});
     dragTd.appendChild(dragHandle);
     tr.appendChild(dragTd);
     tr.addEventListener('dragstart',e=>{
@@ -1475,6 +1481,7 @@ function renderLines(){
     });
     tr.addEventListener('dragend',()=>{
       tr.classList.remove('dragging');
+      tr.draggable=false;
       _draggedLineId=null;
     });
     tr.addEventListener('dragover',e=>{
@@ -1597,8 +1604,10 @@ function makeTextCell(item,rowIdx,field,placeholder){
   if(field==='sku'){
     // SKU cell gets a product search dropdown
     const wrap=document.createElement('div');wrap.className='sku-wrap';
+    const expandWrap=document.createElement('div');expandWrap.className='expand-wrap';
     const inp=document.createElement('input');
     inp.type='text';inp.value=item[field];inp.placeholder=placeholder;
+    inp.className='expand-input';
     inp.dataset.id=item.id;inp.dataset.field=field;inp.autocomplete='off';
     inp.addEventListener('input',e=>{
       const it=lineItems.find(l=>l.id===item.id);
@@ -1616,12 +1625,15 @@ function makeTextCell(item,rowIdx,field,placeholder){
     });
     const dd=document.createElement('div');dd.className='product-dropdown';
     dd.dataset.ddFor=item.id;
-    wrap.appendChild(inp);wrap.appendChild(dd);
+    expandWrap.appendChild(inp);
+    wrap.appendChild(expandWrap);wrap.appendChild(dd);
     td.appendChild(wrap);
     return td;
   }
+  const expandWrap=document.createElement('div');expandWrap.className='expand-wrap';
   const inp=document.createElement('input');
   inp.type='text';inp.value=item[field];inp.placeholder=placeholder;
+  inp.className='expand-input';
   inp.dataset.id=item.id;inp.dataset.field=field;
   inp.addEventListener('input',e=>{
     const it=lineItems.find(l=>l.id===item.id);
@@ -1629,7 +1641,8 @@ function makeTextCell(item,rowIdx,field,placeholder){
     updateSummary();
   });
   inp.addEventListener('keydown',e=>lineKeyNav(e,rowIdx,field==='sku'?0:1));
-  td.appendChild(inp);
+  expandWrap.appendChild(inp);
+  td.appendChild(expandWrap);
   return td;
 }
 

@@ -760,3 +760,74 @@ test('clears all line items after confirmation and leaves one fresh blank line',
   await expect(rows).toHaveCount(1);
   await expect(rows.first().locator('input[data-field="sku"]')).toHaveValue('');
 });
+
+test('Print — Customer hides GP fields, cost prices, and the internal banner', async ({ page }) => {
+  await mockQuotesApi(page);
+  await page.goto(appPath);
+
+  await page.locator('#line-items-body input[data-field="cost"]').nth(0).fill('10');
+  await page.locator('#line-items-body input[data-field="sell"]').nth(0).fill('20');
+
+  await page.emulateMedia({ media: 'print' });
+
+  await expect(page.locator('body')).not.toHaveClass(/print-internal/);
+  await expect(page.locator('#internal-print-banner')).toBeHidden();
+  await expect(page.locator('#gp-internal-summary')).toBeHidden();
+  await expect(page.locator('.line-table thead th.gp-field').first()).toBeHidden();
+  await expect(page.locator('#sum-card2')).toBeHidden();
+  await expect(page.locator('#sum-card3')).toBeHidden();
+});
+
+test('Print — Internal shows GP fields, cost prices, GP summary, and the internal banner', async ({ page }) => {
+  await mockQuotesApi(page);
+  await page.goto(appPath);
+
+  await page.locator('#line-items-body input[data-field="cost"]').nth(0).fill('10');
+  await page.locator('#line-items-body input[data-field="sell"]').nth(0).fill('20');
+
+  await page.locator('#print-internal-btn').click();
+  await page.emulateMedia({ media: 'print' });
+
+  await expect(page.locator('body')).toHaveClass(/print-internal/);
+  await expect(page.locator('#internal-print-banner')).toBeVisible();
+  await expect(page.locator('#internal-print-banner')).toContainText('INTERNAL — NOT FOR CUSTOMER');
+  await expect(page.locator('#gp-internal-summary')).toBeVisible();
+  await expect(page.locator('.line-table thead th.gp-field').first()).toBeVisible();
+  await expect(page.locator('#sum-card2')).toBeVisible();
+  await expect(page.locator('#sum-card3')).toBeVisible();
+});
+
+test('line item row is not draggable until the drag handle is grabbed', async ({ page }) => {
+  await mockQuotesApi(page);
+  await page.goto(appPath);
+
+  const firstRow = page.locator('#line-items-body tr:not(.line-slider-row)').first();
+  await expect(firstRow).toHaveJSProperty('draggable', false);
+
+  const handleCell = firstRow.locator('.drag-handle-cell');
+  const box = await handleCell.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await expect(firstRow).toHaveJSProperty('draggable', true);
+  await page.mouse.up();
+  await expect(firstRow).toHaveJSProperty('draggable', false);
+});
+
+test('SKU and description fields expand on focus and allow normal text selection', async ({ page }) => {
+  await mockQuotesApi(page);
+  await page.goto(appPath);
+
+  const descInput = page.locator('#line-items-body input[data-field="desc"]').first();
+  await descInput.fill('A long product description that does not fit in the column width');
+
+  const unfocusedWidth = (await descInput.boundingBox()).width;
+  await descInput.click();
+  const focusedWidth = (await descInput.boundingBox()).width;
+  expect(focusedWidth).toBeGreaterThanOrEqual(unfocusedWidth);
+  expect(focusedWidth).toBeGreaterThanOrEqual(260);
+
+  // Triple-click should select text within the field rather than starting a drag
+  await descInput.click({ clickCount: 3 });
+  const selected = await descInput.evaluate(el => el.value.substring(el.selectionStart, el.selectionEnd));
+  expect(selected.length).toBeGreaterThan(0);
+});

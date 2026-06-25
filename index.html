@@ -171,37 +171,40 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
 .warn-banner.show{display:block}
 @media print{
   @page{size:A4;margin:1cm}
-  body{background:#fff;padding:0;font-size:13pt}
+  body{background:#fff;padding:0;font-size:9.5pt}
   .no-print{display:none!important}
   .print-only{display:block!important}
   .container{max-width:100%;width:100%}
-  .section{border:1px solid #ccc;break-inside:avoid;padding:10px;margin-bottom:0.5rem}
+  .section{border:1px solid #ccc;break-inside:avoid;padding:6px 8px;margin-bottom:0.3rem}
+  .section:empty{display:none!important}
   #line-items-section{break-inside:auto}
-  .section-title{font-size:14pt;margin-bottom:0.5rem}
+  .section-title{font-size:12pt;margin-bottom:0.25rem}
   .summary-cards{break-inside:avoid}
-  .field label{font-size:10pt}
-  .field input,.field select,.field textarea{font-size:13pt;border:none;padding:1px 0}
+  .row3{gap:6px;margin-bottom:4px!important}
+  .field{margin-bottom:0!important}
+  .field label{font-size:8pt;margin-bottom:1px}
+  .field input,.field select,.field textarea{font-size:9.5pt;border:none;padding:0}
   ::placeholder{color:transparent!important}
-  .line-table{font-size:11pt;width:100%}
-  .line-table th{font-size:10pt;padding:5px 6px}
-  .line-table td{padding:5px 6px}
+  .line-table{font-size:9pt;width:100%}
+  .line-table th{font-size:8.5pt;padding:2px 4px}
+  .line-table td{padding:2px 4px}
   .line-table tr{break-inside:avoid}
-  .line-table input{font-size:11pt;border:none;background:transparent;height:auto;padding:1px 0}
+  .line-table input{font-size:9pt;border:none;background:transparent;height:auto;padding:0}
   .empty-line-print{display:none!important}
-  .quote-totals{font-size:14pt;border:2px solid #1a1a1a;padding:10px 14px;margin-top:0.75rem}
-  .quote-totals-row{padding:4px 0}
-  .quote-totals-row.total{font-size:18pt;font-weight:700}
-  #print-header{margin-bottom:0.75rem}
-  #print-header div[style*="font-size:22px"]{font-size:22pt!important}
-  #print-quote-number{font-size:16pt}
-  #print-date,#print-rep{font-size:11pt}
+  .quote-totals{font-size:10pt;border:2px solid #1a1a1a;padding:6px 10px;margin-top:0.4rem}
+  .quote-totals-row{padding:2px 0}
+  .quote-totals-row.total{font-size:13pt;font-weight:700}
+  #print-header{margin-bottom:0.4rem}
+  #print-header div[style*="font-size:22px"]{font-size:16pt!important}
+  #print-quote-number{font-size:12pt}
+  #print-date,#print-rep{font-size:9pt}
   .gp-field{display:none!important}
   .gp-internal-summary{display:none!important}
   .internal-print-banner{display:none!important}
   body.print-internal td.gp-field,body.print-internal th.gp-field{display:table-cell!important}
   body.print-internal div.gp-field{display:block!important}
-  body.print-internal .gp-internal-summary{display:block!important;font-size:14pt;border:2px solid #791F1F;margin-top:0.75rem}
-  body.print-internal .internal-print-banner{display:block!important;font-size:13pt;font-weight:700;color:#791F1F;background:#FAEEDA;border:2px solid #791F1F;border-radius:8px;padding:8px 14px;margin-bottom:0.75rem;text-align:center}
+  body.print-internal .gp-internal-summary{display:block!important;font-size:10pt;border:2px solid #791F1F;margin-top:0.4rem}
+  body.print-internal .internal-print-banner{display:block!important;font-size:9.5pt;font-weight:700;color:#791F1F;background:#FAEEDA;border:2px solid #791F1F;border-radius:8px;padding:4px 10px;margin-bottom:0.4rem;text-align:center}
 }
 .print-only{display:none}
 .internal-print-banner{display:none}

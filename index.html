@@ -185,11 +185,20 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
   .field label{font-size:8pt;margin-bottom:1px}
   .field input,.field select,.field textarea{font-size:9.5pt;border:none;padding:0}
   ::placeholder{color:transparent!important}
-  .line-table{font-size:9pt;width:100%}
-  .line-table th{font-size:8.5pt;padding:2px 4px}
-  .line-table td{padding:2px 4px}
+  .line-wrap{overflow-x:visible!important}
+  .line-table{font-size:9pt;width:100%!important;min-width:0!important;table-layout:fixed}
+  .line-table th{font-size:8.5pt;padding:2px 4px;overflow:hidden;white-space:normal}
+  .line-table th#col-th-sku{width:13%!important}
+  .line-table th#col-th-desc{width:27%!important}
+  .line-table th:nth-child(4){width:8%!important}
+  .line-table th:nth-child(5){width:11%!important}
+  .line-table th:nth-child(6){width:11%!important}
+  .line-table th:nth-child(7){width:8%!important}
+  .line-table th:nth-child(8){width:11%!important}
+  .line-table th:nth-child(9){width:11%!important}
+  .line-table td{padding:2px 4px;overflow:hidden}
   .line-table tr{break-inside:avoid}
-  .line-table input{font-size:9pt;border:none;background:transparent;height:auto;padding:0}
+  .line-table input{font-size:9pt;border:none;background:transparent;height:auto;padding:0;width:100%}
   .empty-line-print{display:none!important}
   .quote-totals{font-size:10pt;border:2px solid #1a1a1a;padding:6px 10px;margin-top:0.4rem}
   .quote-totals-row{padding:2px 0}

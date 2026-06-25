@@ -98,7 +98,7 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
 .toast.success{display:block;background:#EAF3DE;color:#27500A;border:1px solid #C0DD97}
 .toast.error{display:block;background:#FCEBEB;color:#791F1F;border:1px solid #F7C1C1}
 .line-wrap{overflow-x:auto;margin-bottom:10px}
-.line-table{width:100%;border-collapse:collapse;font-size:13px;min-width:750px;table-layout:fixed}
+.line-table{width:auto;border-collapse:collapse;font-size:13px;min-width:750px;table-layout:fixed}
 .line-table th{text-align:left;padding:6px 8px;font-size:11px;font-weight:500;color:#888;border-bottom:1px solid #e8e8e8;white-space:nowrap;position:relative}
 .col-resize-handle{position:absolute;top:0;right:-4px;width:9px;height:100%;cursor:col-resize;touch-action:none;z-index:5;display:flex;align-items:center;justify-content:center}
 .col-resize-handle::after{content:'';display:block;width:2px;height:60%;background:#ccc;border-radius:1px;transition:background 0.1s}
@@ -170,34 +170,38 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
 .warn-banner{display:none;background:#FAEEDA;border:1px solid #FAC775;border-radius:8px;padding:8px 12px;font-size:12px;color:#633806;margin-bottom:0.75rem}
 .warn-banner.show{display:block}
 @media print{
-  @page{size:A4;margin:1.5cm}
-  body{background:#fff;padding:0;font-size:14pt}
+  @page{size:A4;margin:1cm}
+  body{background:#fff;padding:0;font-size:13pt}
   .no-print{display:none!important}
   .print-only{display:block!important}
   .container{max-width:100%;width:100%}
-  .section{border:1px solid #ccc;break-inside:avoid;padding:18px}
-  .section-title{font-size:18pt}
+  .section{border:1px solid #ccc;break-inside:avoid;padding:10px;margin-bottom:0.5rem}
+  #line-items-section{break-inside:auto}
+  .section-title{font-size:14pt;margin-bottom:0.5rem}
   .summary-cards{break-inside:avoid}
-  .field label{font-size:12pt}
-  .field input,.field select,.field textarea{font-size:15pt;border:none;padding:2px 0}
-  .line-table{font-size:13pt;width:100%}
-  .line-table th{font-size:12pt;padding:12px 8px}
-  .line-table td{padding:12px 8px}
-  .line-table input{font-size:13pt;border:none;background:transparent;height:auto;padding:2px 0}
-  .quote-totals{font-size:18pt;border:2px solid #1a1a1a;padding:18px 22px;margin-top:1.2rem}
-  .quote-totals-row{padding:8px 0}
-  .quote-totals-row.total{font-size:30pt;font-weight:700}
-  #print-header{margin-bottom:1.5rem}
-  #print-header div[style*="font-size:22px"]{font-size:28pt!important}
-  #print-quote-number{font-size:20pt}
-  #print-date,#print-rep{font-size:14pt}
+  .field label{font-size:10pt}
+  .field input,.field select,.field textarea{font-size:13pt;border:none;padding:1px 0}
+  ::placeholder{color:transparent!important}
+  .line-table{font-size:11pt;width:100%}
+  .line-table th{font-size:10pt;padding:5px 6px}
+  .line-table td{padding:5px 6px}
+  .line-table tr{break-inside:avoid}
+  .line-table input{font-size:11pt;border:none;background:transparent;height:auto;padding:1px 0}
+  .empty-line-print{display:none!important}
+  .quote-totals{font-size:14pt;border:2px solid #1a1a1a;padding:10px 14px;margin-top:0.75rem}
+  .quote-totals-row{padding:4px 0}
+  .quote-totals-row.total{font-size:18pt;font-weight:700}
+  #print-header{margin-bottom:0.75rem}
+  #print-header div[style*="font-size:22px"]{font-size:22pt!important}
+  #print-quote-number{font-size:16pt}
+  #print-date,#print-rep{font-size:11pt}
   .gp-field{display:none!important}
   .gp-internal-summary{display:none!important}
   .internal-print-banner{display:none!important}
   body.print-internal td.gp-field,body.print-internal th.gp-field{display:table-cell!important}
   body.print-internal div.gp-field{display:block!important}
-  body.print-internal .gp-internal-summary{display:block!important;font-size:18pt;border:2px solid #791F1F;margin-top:1.2rem}
-  body.print-internal .internal-print-banner{display:block!important;font-size:16pt;font-weight:700;color:#791F1F;background:#FAEEDA;border:2px solid #791F1F;border-radius:8px;padding:10px 16px;margin-bottom:1rem;text-align:center}
+  body.print-internal .gp-internal-summary{display:block!important;font-size:14pt;border:2px solid #791F1F;margin-top:0.75rem}
+  body.print-internal .internal-print-banner{display:block!important;font-size:13pt;font-weight:700;color:#791F1F;background:#FAEEDA;border:2px solid #791F1F;border-radius:8px;padding:8px 14px;margin-bottom:0.75rem;text-align:center}
 }
 .print-only{display:none}
 .internal-print-banner{display:none}
@@ -397,7 +401,7 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
   </div>
 </div>
 
-<div class="section">
+<div class="section" id="line-items-section">
   <div class="section-title">Line items</div>
   <div class="line-wrap">
   <table class="line-table">
@@ -1463,6 +1467,7 @@ function renderLines(){
     const tr=document.createElement('tr');
     tr.draggable=false;
     tr.dataset.lineId=item.id;
+    if(!item.qty&&!item.sell)tr.classList.add('empty-line-print');
     const dragTd=document.createElement('td');
     dragTd.className='no-print drag-handle-cell';
     const dragHandle=document.createElement('span');
@@ -3042,26 +3047,17 @@ async function patchQuoteStatus(id,newStatus){
 
 (function(){
   const COL_MIN=80;
-  const skuTh=document.getElementById('col-th-sku');
-  const descTh=document.getElementById('col-th-desc');
   document.querySelectorAll('.col-resize-handle').forEach(handle=>{
-    // Each handle resizes the SKU/Description pair: one grows by exactly
-    // what the other shrinks, so total table width never changes and no
-    // horizontal scrollbar appears.
-    const grow=handle.dataset.col==='col-th-sku'?skuTh:descTh;
-    const shrink=handle.dataset.col==='col-th-sku'?descTh:skuTh;
+    // Each handle resizes only its own column, independently of the other.
+    const th=document.getElementById(handle.dataset.col);
     handle.addEventListener('mousedown',e=>{
       e.preventDefault();
       const startX=e.clientX;
-      const startGrow=grow.getBoundingClientRect().width;
-      const startShrink=shrink.getBoundingClientRect().width;
+      const startWidth=th.getBoundingClientRect().width;
       handle.classList.add('resizing');
       function onMove(ev){
-        let dx=ev.clientX-startX;
-        if(startGrow+dx<COL_MIN)dx=COL_MIN-startGrow;
-        if(startShrink-dx<COL_MIN)dx=startShrink-COL_MIN;
-        grow.style.width=(startGrow+dx)+'px';
-        shrink.style.width=(startShrink-dx)+'px';
+        const newWidth=Math.max(COL_MIN,startWidth+(ev.clientX-startX));
+        th.style.width=newWidth+'px';
       }
       function onUp(){
         handle.classList.remove('resizing');

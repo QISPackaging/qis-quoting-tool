@@ -244,7 +244,7 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
 .pd-sell{color:#0C447C;font-weight:500;}
 
 /* ─── Mobile responsive (≤768px) ───────────────────────────────────────── */
-@media (max-width:768px){
+@media screen and (max-width:768px){
   body{padding:12px}
   .container{max-width:100%}
   .row2,.row3,.counter-fields.show,.computed-row,.summary-cards{grid-template-columns:1fr}
@@ -1678,6 +1678,8 @@ function updateRowCells(id){
   const gp=calcGP(item.cost,item.sell);
   const tS=item.sell*item.qty;
   const tG=(item.sell-item.cost)*item.qty;
+  const tr=document.querySelector(`#line-items-body tr[data-line-id="${id}"]`);
+  if(tr)tr.classList.toggle('empty-line-print',!item.qty&&!item.sell);
   const sellInput=document.querySelector(`#line-items-body input[data-id="${id}"][data-field="sell"]`);
   if(sellInput&&document.activeElement!==sellInput){
     sellInput.value=item.sell===0?'':item.sell;

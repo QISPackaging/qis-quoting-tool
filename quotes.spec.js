@@ -740,6 +740,58 @@ test('hides internal fields and shows print header when printing', async ({ page
   await expect(page.locator('#quote-totals')).toBeVisible();
 });
 
+test('hides placeholder text on print, leaving blank fields empty', async ({ page }) => {
+  await mockQuotesApi(page);
+  await page.goto(appPath);
+
+  const businessInput = page.locator('#business-name');
+  await expect(businessInput).toHaveAttribute('placeholder', /Bris Port Logistics/);
+
+  await page.emulateMedia({ media: 'print' });
+
+  const placeholderColor = await businessInput.evaluate(el => getComputedStyle(el, '::placeholder').color);
+  expect(placeholderColor).toBe('rgba(0, 0, 0, 0)');
+  expect(await businessInput.inputValue()).toBe('');
+});
+
+test('hides line items with no qty and no sell price entirely on print', async ({ page }) => {
+  await mockQuotesApi(page);
+  await page.goto(appPath);
+
+  const firstRow = page.locator('#line-items-body tr:not(.line-slider-row)').first();
+  await firstRow.locator('input[data-field="qty"]').fill('5');
+  await firstRow.locator('input[data-field="sell"]').fill('10');
+  await page.locator('#add-line-btn').click();
+
+  const rows = page.locator('#line-items-body tr:not(.line-slider-row)');
+  const blankRow = rows.nth(1);
+
+  await page.emulateMedia({ media: 'print' });
+
+  await expect(firstRow).toBeVisible();
+  await expect(blankRow).toBeHidden();
+});
+
+test('prints line items as a table with columns instead of stacked mobile cards', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 800 });
+  await mockQuotesApi(page);
+  await page.goto(appPath);
+
+  const firstRow = page.locator('#line-items-body tr:not(.line-slider-row)').first();
+  await firstRow.locator('input[data-field="qty"]').fill('5');
+  await firstRow.locator('input[data-field="sell"]').fill('10');
+
+  await page.emulateMedia({ media: 'print' });
+
+  const table = page.locator('.line-table').first();
+  await expect(table.locator('thead')).toBeVisible();
+  await expect(table).toHaveCSS('display', 'table');
+  await expect(firstRow).toHaveCSS('display', 'table-row');
+
+  const firstCell = firstRow.locator('td:not(.no-print)').first();
+  await expect(firstCell).toHaveCSS('display', 'table-cell');
+});
+
 test('clears all line items after confirmation and leaves one fresh blank line', async ({ page }) => {
   await mockQuotesApi(page);
   await page.goto(appPath);
@@ -813,7 +865,7 @@ test('line item row is not draggable until the drag handle is grabbed', async ({
   await expect(firstRow).toHaveJSProperty('draggable', false);
 });
 
-test('SKU and description fields expand on focus and allow normal text selection', async ({ page }) => {
+test('SKU and description fields behave as plain inputs with no expand-on-focus', async ({ page }) => {
   await mockQuotesApi(page);
   await page.goto(appPath);
 
@@ -821,13 +873,59 @@ test('SKU and description fields expand on focus and allow normal text selection
   await descInput.fill('A long product description that does not fit in the column width');
 
   const unfocusedWidth = (await descInput.boundingBox()).width;
+  const unfocusedY = (await descInput.boundingBox()).y;
   await descInput.click();
-  const focusedWidth = (await descInput.boundingBox()).width;
-  expect(focusedWidth).toBeGreaterThanOrEqual(unfocusedWidth);
-  expect(focusedWidth).toBeGreaterThanOrEqual(260);
+  const focusedBox = await descInput.boundingBox();
+  expect(focusedBox.width).toBe(unfocusedWidth);
+  expect(focusedBox.y).toBe(unfocusedY);
 
   // Triple-click should select text within the field rather than starting a drag
   await descInput.click({ clickCount: 3 });
   const selected = await descInput.evaluate(el => el.value.substring(el.selectionStart, el.selectionEnd));
   expect(selected.length).toBeGreaterThan(0);
+});
+
+test('dragging the description resize handle widens description without changing SKU width', async ({ page }) => {
+  await mockQuotesApi(page);
+  await page.goto(appPath);
+
+  const skuTh = page.locator('#col-th-sku');
+  const descTh = page.locator('#col-th-desc');
+  const startSkuWidth = (await skuTh.boundingBox()).width;
+  const startDescWidth = (await descTh.boundingBox()).width;
+
+  const handle = page.locator('.col-resize-handle[data-col="col-th-desc"]');
+  const box = await handle.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 60, box.y + box.height / 2);
+  await page.mouse.up();
+
+  const endSkuWidth = (await skuTh.boundingBox()).width;
+  const endDescWidth = (await descTh.boundingBox()).width;
+
+  expect(endDescWidth).toBeGreaterThan(startDescWidth + 40);
+  expect(Math.abs(endSkuWidth - startSkuWidth)).toBeLessThan(1);
+});
+
+test('dragging the SKU resize handle widens SKU without changing description width', async ({ page }) => {
+  await mockQuotesApi(page);
+  await page.goto(appPath);
+
+  const skuTh = page.locator('#col-th-sku');
+  const descTh = page.locator('#col-th-desc');
+  const startSkuWidth = (await skuTh.boundingBox()).width;
+  const startDescWidth = (await descTh.boundingBox()).width;
+
+  const handle = page.locator('.col-resize-handle[data-col="col-th-sku"]');
+  const box = await handle.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 60, box.y + box.height / 2);
+  await page.mouse.up();
+
+  const endSkuWidth = (await skuTh.boundingBox()).width;
+  const endDescWidth = (await descTh.boundingBox()).width;
+  expect(endSkuWidth).toBeGreaterThan(startSkuWidth + 40);
+  expect(Math.abs(endDescWidth - startDescWidth)).toBeLessThan(1);
 });

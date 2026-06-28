@@ -3064,14 +3064,25 @@ async function patchQuoteStatus(id,newStatus){
   document.querySelectorAll('.col-resize-handle').forEach(handle=>{
     // Each handle resizes only its own column, independently of the other.
     const th=document.getElementById(handle.dataset.col);
+    const table=th.closest('table');
     handle.addEventListener('mousedown',e=>{
       e.preventDefault();
       const startX=e.clientX;
       const startWidth=th.getBoundingClientRect().width;
+      // Pin every column to its rendered width and fix the table's own width so
+      // the browser has no slack to redistribute across columns (min-width
+      // + table-layout:fixed otherwise grows sibling columns when one shrinks).
+      const ths=Array.from(table.querySelectorAll('thead th'));
+      let total=0;
+      ths.forEach(h=>{const w=h.getBoundingClientRect().width;h.style.width=w+'px';total+=w;});
+      table.style.width=total+'px';
+      table.style.minWidth='0';
       handle.classList.add('resizing');
       function onMove(ev){
         const newWidth=Math.max(COL_MIN,startWidth+(ev.clientX-startX));
         th.style.width=newWidth+'px';
+        // Grow/shrink only the table itself by the same delta so other columns stay fixed.
+        table.style.width=(total-startWidth+newWidth)+'px';
       }
       function onUp(){
         handle.classList.remove('resizing');

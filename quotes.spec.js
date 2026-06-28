@@ -929,3 +929,38 @@ test('dragging the SKU resize handle widens SKU without changing description wid
   expect(endSkuWidth).toBeGreaterThan(startSkuWidth + 40);
   expect(Math.abs(endDescWidth - startDescWidth)).toBeLessThan(1);
 });
+
+test('shrinking the SKU column leaves description and other columns unchanged', async ({ page }) => {
+  await mockQuotesApi(page);
+  await page.goto(appPath);
+
+  // Widen SKU first so there is room to shrink it back down.
+  const skuHandle = page.locator('.col-resize-handle[data-col="col-th-sku"]');
+  let box = await skuHandle.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 120, box.y + box.height / 2);
+  await page.mouse.up();
+
+  const skuTh = page.locator('#col-th-sku');
+  const descTh = page.locator('#col-th-desc');
+  const qtyTh = page.locator('.line-table thead th').nth(3);
+  const startSkuWidth = (await skuTh.boundingBox()).width;
+  const startDescWidth = (await descTh.boundingBox()).width;
+  const startQtyWidth = (await qtyTh.boundingBox()).width;
+
+  // Now shrink SKU back down — the failure mode where siblings used to grow.
+  box = await skuHandle.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 - 80, box.y + box.height / 2);
+  await page.mouse.up();
+
+  const endSkuWidth = (await skuTh.boundingBox()).width;
+  const endDescWidth = (await descTh.boundingBox()).width;
+  const endQtyWidth = (await qtyTh.boundingBox()).width;
+
+  expect(endSkuWidth).toBeLessThan(startSkuWidth - 40);
+  expect(Math.abs(endDescWidth - startDescWidth)).toBeLessThan(1);
+  expect(Math.abs(endQtyWidth - startQtyWidth)).toBeLessThan(1);
+});

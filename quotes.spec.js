@@ -813,6 +813,41 @@ test('clears all line items after confirmation and leaves one fresh blank line',
   await expect(rows.first().locator('input[data-field="sku"]')).toHaveValue('');
 });
 
+test('duplicates a line item directly below the original with a copy of its values and a unique id', async ({ page }) => {
+  await mockQuotesApi(page);
+  await page.goto(appPath);
+
+  const firstRow = page.locator('#line-items-body tr:not(.line-slider-row)').first();
+  await firstRow.locator('input[data-field="sku"]').fill('WIDGET-1');
+  await firstRow.locator('input[data-field="desc"]').fill('Blue widget');
+  await firstRow.locator('input[data-field="qty"]').fill('10');
+  await firstRow.locator('input[data-field="cost"]').fill('5');
+  await firstRow.locator('input[data-field="sell"]').fill('12');
+
+  const originalId = await firstRow.getAttribute('data-line-id');
+
+  await firstRow.locator('.dup-btn').click();
+
+  const rows = page.locator('#line-items-body tr:not(.line-slider-row)');
+  await expect(rows).toHaveCount(2);
+
+  // Copy sits directly below the original and carries the same field values.
+  const copyRow = rows.nth(1);
+  await expect(copyRow.locator('input[data-field="sku"]')).toHaveValue('WIDGET-1');
+  await expect(copyRow.locator('input[data-field="desc"]')).toHaveValue('Blue widget');
+  await expect(copyRow.locator('input[data-field="qty"]')).toHaveValue('10');
+  await expect(copyRow.locator('input[data-field="cost"]')).toHaveValue('5');
+  await expect(copyRow.locator('input[data-field="sell"]')).toHaveValue('12');
+
+  // The duplicate has its own unique id.
+  const copyId = await copyRow.getAttribute('data-line-id');
+  expect(copyId).not.toBe(originalId);
+
+  // Adjusting the copy's qty does not affect the original (a different tier).
+  await copyRow.locator('input[data-field="qty"]').fill('50');
+  await expect(rows.nth(0).locator('input[data-field="qty"]')).toHaveValue('10');
+});
+
 test('Print — Customer hides GP fields, cost prices, and the internal banner', async ({ page }) => {
   await mockQuotesApi(page);
   await page.goto(appPath);

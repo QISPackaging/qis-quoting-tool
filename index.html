@@ -110,6 +110,8 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
 .tot-cell{font-size:12px;padding:4px 8px!important;white-space:nowrap}
 .remove-btn{background:none;border:none;cursor:pointer;color:#aaa;font-size:18px;padding:4px 8px;line-height:1}
 .remove-btn:hover,.remove-btn:focus{outline:none;color:#E24B4A}
+.dup-btn{background:none;border:none;cursor:pointer;color:#aaa;font-size:15px;padding:4px 6px;line-height:1}
+.dup-btn:hover,.dup-btn:focus{outline:none;color:#1a1a1a}
 .followup-log{margin-top:0.5rem}
 .followup-entry{background:#f5f5f3;border:1px solid #e8e8e8;border-radius:8px;padding:10px 12px;margin-bottom:8px;font-size:13px;display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
 .followup-entry .fu-left{flex:1}
@@ -427,7 +429,7 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
       <th style="width:55px" class="no-print gp-field">GP%</th>
       <th style="width:85px">Total sell</th>
       <th style="width:85px" class="no-print gp-field">Total GP</th>
-      <th style="width:28px" class="no-print"></th>
+      <th style="width:60px" class="no-print"></th>
     </tr></thead>
     <tbody id="line-items-body"></tbody>
   </table>
@@ -1446,6 +1448,23 @@ function addLine(){
   }
 }
 
+function duplicateLine(id){
+  const idx=lineItems.findIndex(l=>l.id===id);
+  if(idx===-1)return;
+  const orig=lineItems[idx];
+  // Copy SKU/desc/cost/sell so the rep can tweak qty (and price) for a new tier.
+  const copy={id:lineId++,sku:orig.sku,desc:orig.desc,qty:orig.qty,cost:orig.cost,sell:orig.sell};
+  lineItems.splice(idx+1,0,copy);
+  renderLines();
+  updateSummary();
+  // Focus the qty field of the new line so the rep can adjust the tier quantity.
+  const rows=document.querySelectorAll('#line-items-body tr:not(.line-slider-row)');
+  if(rows[idx+1]){
+    const qtyInp=rows[idx+1].querySelector('input[data-field="qty"]');
+    if(qtyInp){qtyInp.focus();qtyInp.select();}
+  }
+}
+
 async function removeLine(id){
   document.getElementById('remove-title').textContent='Remove line item?';
   document.getElementById('remove-desc').textContent='This will delete the line and cannot be undone.';
@@ -1542,6 +1561,12 @@ function renderLines(){
     tr.appendChild(tgTd);
     const remTd=document.createElement('td');
     remTd.className='no-print';
+    const dupBtn=document.createElement('button');
+    dupBtn.className='dup-btn';dupBtn.textContent='⧉';
+    dupBtn.setAttribute('aria-label','Duplicate line');
+    dupBtn.title='Duplicate line';
+    dupBtn.addEventListener('click',()=>duplicateLine(item.id));
+    remTd.appendChild(dupBtn);
     const remBtn=document.createElement('button');
     remBtn.className='remove-btn';remBtn.textContent='×';
     remBtn.setAttribute('aria-label','Remove line');

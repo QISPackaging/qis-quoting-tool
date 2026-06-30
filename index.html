@@ -2869,7 +2869,7 @@ async function loadReporting(){
   if(!container) return;
   container.innerHTML='<div class="empty-state">Loading report...</div>';
   try{
-    const res=await fetch(SURL+'/rest/v1/quotes?select=status,rep,gp_percent',{headers:H});
+    const res=await fetch(SURL+'/rest/v1/quotes?select=status,rep,gp_percent,sell_price',{headers:H});
     if(!res.ok){container.innerHTML='<div class="empty-state">Error loading report ('+res.status+')</div>';return;}
     const data=await res.json();
     const counts=getQuoteStatusCounts(data);

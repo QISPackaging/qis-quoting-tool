@@ -110,6 +110,8 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
 .tot-cell{font-size:12px;padding:4px 8px!important;white-space:nowrap}
 .remove-btn{background:none;border:none;cursor:pointer;color:#aaa;font-size:18px;padding:4px 8px;line-height:1}
 .remove-btn:hover,.remove-btn:focus{outline:none;color:#E24B4A}
+/* Features hidden pending Unleashed integration — code kept intact, UI hidden. */
+.feature-hidden{display:none!important}
 .dup-btn{background:none;border:none;cursor:pointer;color:#aaa;font-size:15px;padding:4px 6px;line-height:1}
 .dup-btn:hover,.dup-btn:focus{outline:none;color:#1a1a1a}
 .followup-log{margin-top:0.5rem}
@@ -487,6 +489,7 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
   <div class="section-title">Quote details</div>
   <div class="row3" style="margin-bottom:12px">
     <div class="field"><label for="quote-date">Quote date</label><input type="date" id="quote-date"></div>
+    <div class="field"><label for="expiry-date">Expiry date</label><input type="date" id="expiry-date"></div>
     <div class="field">
       <label for="freight">Freight to customer (inc GST)</label>
       <div class="input-prefix"><span>$</span><input type="number" id="freight" min="0" step="0.01" value="0" oninput="updateSummary();if(document.getElementById('counter-fields').classList.contains('show'))calcCounterGP();"></div>
@@ -564,8 +567,8 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
 
 <div class="action-row no-print">
   <button class="new-btn" id="new-btn" onclick="confirmNewQuote()">New quote</button>
-  <button class="new-btn" id="save-template-btn" onclick="openSaveTemplateDialog()">Save as template</button>
-  <button class="new-btn" id="load-template-btn" onclick="openLoadTemplateDialog()">Load template</button>
+  <button class="new-btn feature-hidden" id="save-template-btn" onclick="openSaveTemplateDialog()">Save as template</button>
+  <button class="new-btn feature-hidden" id="load-template-btn" onclick="openLoadTemplateDialog()">Load template</button>
   <button class="new-btn" id="copy-summary-btn" onclick="copyQuoteSummary()">Copy summary</button>
   <button class="pdf-btn" id="print-customer-btn" onclick="generatePDF('customer')">Print — Customer</button>
   <button class="pdf-btn" id="print-internal-btn" onclick="generatePDF('internal')">Print — Internal</button>
@@ -594,8 +597,8 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
       </div>
     </div>
     <div id="shipments-list"></div>
-    <button class="collapsible-toggle" onclick="toggleCompareShipments()">Compare suppliers / shipments</button>
-    <div id="shipments-compare" class="breakdown-body"></div>
+    <button class="collapsible-toggle feature-hidden" onclick="toggleCompareShipments()">Compare suppliers / shipments</button>
+    <div id="shipments-compare" class="breakdown-body feature-hidden"></div>
   </div>
 
   <div class="section">
@@ -730,7 +733,7 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
   <div id="customer-history-section" class="customer-history" style="display:none">
     <h3 id="customer-history-title">Quote history</h3>
     <div id="customer-history-body"></div>
-    <div id="customer-history-notes" style="margin-top:0.75rem"></div>
+    <div id="customer-history-notes" class="feature-hidden" style="margin-top:0.75rem"></div>
   </div>
   <div id="quotes-container" class="empty-state">Select a filter or switch to this tab to load quotes</div>
 </div>
@@ -1378,6 +1381,31 @@ function todayISO(){
   const m=String(d.getMonth()+1).padStart(2,'0');
   const day=String(d.getDate()).padStart(2,'0');
   return y+'-'+m+'-'+day;
+}
+
+// Expiry date defaults to 30 days after the quote date. It tracks the quote
+// date automatically until the rep edits it manually (expiryManuallySet).
+let expiryManuallySet=false;
+
+function addDaysISO(iso,days){
+  if(!iso) return '';
+  const parts=iso.substring(0,10).split('-');
+  const d=new Date(parseInt(parts[0],10),parseInt(parts[1],10)-1,parseInt(parts[2],10));
+  d.setDate(d.getDate()+days);
+  const y=d.getFullYear();
+  const m=String(d.getMonth()+1).padStart(2,'0');
+  const day=String(d.getDate()).padStart(2,'0');
+  return y+'-'+m+'-'+day;
+}
+
+function defaultExpiryFor(quoteIso){
+  return addDaysISO(quoteIso||todayISO(),30);
+}
+
+function syncExpiryToQuoteDate(){
+  if(expiryManuallySet) return;
+  const qd=document.getElementById('quote-date').value;
+  document.getElementById('expiry-date').value=defaultExpiryFor(qd);
 }
 
 function parseFollowups(q){
@@ -2134,6 +2162,9 @@ function selectProduct(p,itemId){
 
 document.getElementById('quote-date').value=todayISO();
 document.getElementById('fu-date').value=todayISO();
+document.getElementById('expiry-date').value=defaultExpiryFor(todayISO());
+document.getElementById('quote-date').addEventListener('change',syncExpiryToQuoteDate);
+document.getElementById('expiry-date').addEventListener('input',()=>{expiryManuallySet=true;});
 
 const landedPortSelect=document.getElementById('landed-origin-port');
 if(landedPortSelect){
@@ -2262,6 +2293,8 @@ function resetForm(){
   document.getElementById('approval-banner').className='approval-banner';
   document.getElementById('quote-date').value=todayISO();
   document.getElementById('fu-date').value=todayISO();
+  expiryManuallySet=false;
+  document.getElementById('expiry-date').value=defaultExpiryFor(todayISO());
   // FIX U8: explicitly re-enable save button on reset
   const sb=document.getElementById('save-btn');
   if(sb){sb.disabled=false;sb.textContent='Save quote';}
@@ -2320,6 +2353,14 @@ function loadQuoteIntoForm(q,editMode=false){
   // Edit mode: keep quote number. Duplicate mode: blank it so rep enters a new one
   if(editMode) document.getElementById('quote-number').value=q.quote_number||'';
   document.getElementById('quote-date').value=q.quote_date?q.quote_date.substring(0,10):todayISO();
+  // Restore saved expiry; if absent (older quotes), default to 30 days from quote date.
+  if(q.expiry_date){
+    document.getElementById('expiry-date').value=q.expiry_date.substring(0,10);
+    expiryManuallySet=true;
+  } else {
+    expiryManuallySet=false;
+    document.getElementById('expiry-date').value=defaultExpiryFor(document.getElementById('quote-date').value);
+  }
   document.getElementById('freight').value=q.freight||'0';
   if(q.freight_in_gp){
     document.getElementById('freight-toggle').checked=true;
@@ -2517,6 +2558,7 @@ async function saveQuote(){
     rep:document.getElementById('rep').value||null,
     quote_number:document.getElementById('quote-number').value||null,
     quote_date:document.getElementById('quote-date').value||null,
+    expiry_date:document.getElementById('expiry-date').value||null,
     status,freight,freight_in_gp:freightOn,
     sell_price:parseFloat(tS.toFixed(2)),
     cost_price:parseFloat(tC.toFixed(2)),

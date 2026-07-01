@@ -813,6 +813,47 @@ test('clears all line items after confirmation and leaves one fresh blank line',
   await expect(rows.first().locator('input[data-field="sku"]')).toHaveValue('');
 });
 
+test('expiry date defaults to 30 days after quote date and tracks it until manually overridden', async ({ page }) => {
+  await mockQuotesApi(page);
+  await page.goto(appPath);
+
+  const quoteDate = page.locator('#quote-date');
+  const expiryDate = page.locator('#expiry-date');
+
+  // Default expiry is 30 days after the quote date.
+  const addDays = (iso, n) => {
+    const p = iso.split('-').map(Number);
+    const d = new Date(p[0], p[1] - 1, p[2]);
+    d.setDate(d.getDate() + n);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+  const startQuote = await quoteDate.inputValue();
+  expect(await expiryDate.inputValue()).toBe(addDays(startQuote, 30));
+
+  // Changing the quote date auto-updates expiry (not manually overridden yet).
+  await quoteDate.fill('2026-03-01');
+  await quoteDate.dispatchEvent('change');
+  expect(await expiryDate.inputValue()).toBe('2026-03-31');
+
+  // Manual override sticks and stops tracking the quote date.
+  await expiryDate.fill('2026-05-15');
+  await quoteDate.fill('2026-04-01');
+  await quoteDate.dispatchEvent('change');
+  expect(await expiryDate.inputValue()).toBe('2026-05-15');
+});
+
+test('template and compare-suppliers UI are hidden but present in the DOM', async ({ page }) => {
+  await mockQuotesApi(page);
+  await page.goto(appPath);
+
+  await expect(page.locator('#save-template-btn')).toBeHidden();
+  await expect(page.locator('#load-template-btn')).toBeHidden();
+  await expect(page.locator('#save-template-btn')).toHaveCount(1);
+
+  await page.locator('button:has-text("Landed Cost Calculator")').click();
+  await expect(page.locator('button:has-text("Compare suppliers / shipments")')).toBeHidden();
+});
+
 test('duplicates a line item directly below the original with a copy of its values and a unique id', async ({ page }) => {
   await mockQuotesApi(page);
   await page.goto(appPath);

@@ -1,0 +1,35 @@
+name: Sync products from Unleashed
+
+on:
+  schedule:
+    # 19:00 UTC = 5:00 AM Brisbane (AEST, UTC+10) - runs daily
+    - cron: "0 19 * * *"
+  workflow_dispatch: {}   # adds a manual "Run workflow" button in the Actions tab
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Run product sync
+        env:
+          UNLEASHED_API_ID: ${{ secrets.UNLEASHED_API_ID }}
+          UNLEASHED_API_KEY: ${{ secrets.UNLEASHED_API_KEY }}
+        run: python3 scripts/sync_unleashed_products.py
+
+      - name: Commit and push if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add qis_products.json
+          if git diff --cached --quiet; then
+            echo "No product changes today."
+          else
+            git commit -m "Auto-sync products from Unleashed"
+            git push
+          fi

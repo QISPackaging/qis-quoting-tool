@@ -103,19 +103,35 @@ def rpc(url, method, params=None, is_notification=False):
     return data.get("result", {})
 
 
+TRANSIENT_MARKERS = ("429", "500", "502", "503", "504", "520", "521", "522", "523", "524",
+                     "timed out", "timeout", "temporarily")
+
+
 def call_tool(url, name, arguments):
-    result = rpc(url, "tools/call", {"name": name, "arguments": arguments})
-    content = result.get("content", [])
-    text = ""
-    for block in content:
-        if block.get("type") == "text":
-            text += block.get("text", "")
-    if result.get("isError"):
-        raise SystemExit("Connector tool '%s' reported an error: %s" % (name, text[:500]))
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        raise SystemExit("Tool '%s' returned non-JSON: %s" % (name, text[:300]))
+    """Call a connector tool. Retries transient upstream errors (Unleashed 5xx/429)."""
+    attempts = 4
+    for attempt in range(1, attempts + 1):
+        result = rpc(url, "tools/call", {"name": name, "arguments": arguments})
+        content = result.get("content", [])
+        text = ""
+        for block in content:
+            if block.get("type") == "text":
+                text += block.get("text", "")
+        if result.get("isError"):
+            lowered = text.lower()
+            transient = any(m in lowered for m in TRANSIENT_MARKERS)
+            if transient and attempt < attempts:
+                wait = 15 * attempt
+                print("Transient upstream error on '%s' (attempt %d/%d): %s -- retrying in %ds"
+                      % (name, attempt, attempts, text[:200], wait))
+                time.sleep(wait)
+                continue
+            raise SystemExit("Connector tool '%s' reported an error: %s" % (name, text[:500]))
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError:
+            raise SystemExit("Tool '%s' returned non-JSON: %s" % (name, text[:300]))
+    raise SystemExit("Tool '%s' failed after %d attempts." % (name, attempts))
 
 
 def to_number(value):
@@ -164,6 +180,7 @@ def main():
         if page >= total_pages or not items:
             break
         page += 1
+        time.sleep(3)  # small gap between pages - kinder to Unleashed, avoids timeouts
 
     if len(products) < MIN_EXPECTED_PRODUCTS:
         raise SystemExit(

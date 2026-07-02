@@ -13,10 +13,12 @@ function mockQuotesApi(page, state = { quotes: [] }) {
     const url = new URL(route.request().url());
 
     if (method === 'GET') {
+      const statusFilter = url.searchParams.get('status')?.replace('eq.', '');
+      const filtered = statusFilter ? quotes.filter(q => q.status === statusFilter) : quotes;
       return route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify(quotes),
+        body: JSON.stringify(filtered),
       });
     }
 
@@ -558,4 +560,483 @@ test.describe('mobile viewport (375px)', () => {
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     expect(overflow).toBeLessThanOrEqual(1);
   });
+});
+
+test('auto-formats the quote number to SQ-XXXXXXXX on blur', async ({ page }) => {
+  await mockQuotesApi(page);
+  await page.goto(appPath);
+
+  await page.locator('#quote-number').fill('474');
+  await page.locator('#business-name').click();
+  await expect(page.locator('#quote-number')).toHaveValue('SQ-00000474');
+});
+
+test('clear filters button resets saved quotes filters to defaults', async ({ page }) => {
+  const initialQuotes = [
+    { id: 601, business_name: 'Alpha Co', customer: 'A', rep: 'Jack', quote_number: 'SQ-00000601', status: 'won', quote_date: '2026-06-01', freight: 0, freight_in_gp: false, sell_price: 500, gp_percent: 40, line_items: '[]', followups: '[]', created_at: '2026-06-01T00:00:00Z' },
+    { id: 602, business_name: 'Beta Co', customer: 'B', rep: 'Sam', quote_number: 'SQ-00000602', status: 'lost', quote_date: '2026-06-02', freight: 0, freight_in_gp: false, sell_price: 300, gp_percent: 10, line_items: '[]', followups: '[]', created_at: '2026-06-02T00:00:00Z' },
+  ];
+  await mockQuotesApi(page, { quotes: initialQuotes });
+
+  await page.goto(appPath);
+  await page.locator('button.tab', { hasText: 'Saved quotes' }).click();
+  await page.locator('#filter-status').selectOption('won');
+  await page.locator('#filter-customer').fill('Alpha');
+  await expect(page.locator('table.quotes-table')).not.toContainText('Beta Co');
+
+  await page.locator('#clear-filters-btn').click();
+  await expect(page.locator('#filter-status')).toHaveValue('');
+  await expect(page.locator('#filter-customer')).toHaveValue('');
+  await expect(page.locator('table.quotes-table')).toContainText('Alpha Co');
+  await expect(page.locator('table.quotes-table')).toContainText('Beta Co');
+});
+
+test('sorts saved quotes by column with click-to-reverse and arrow indicator', async ({ page }) => {
+  const initialQuotes = [
+    { id: 701, business_name: 'Zeta Co', customer: 'Z', rep: 'Jack', quote_number: 'SQ-00000701', status: 'pending', quote_date: '2026-06-01', freight: 0, freight_in_gp: false, sell_price: 100, gp_percent: 10, line_items: '[]', followups: '[]', created_at: '2026-06-01T00:00:00Z' },
+    { id: 702, business_name: 'Alpha Co', customer: 'A', rep: 'Jack', quote_number: 'SQ-00000702', status: 'pending', quote_date: '2026-06-02', freight: 0, freight_in_gp: false, sell_price: 300, gp_percent: 30, line_items: '[]', followups: '[]', created_at: '2026-06-02T00:00:00Z' },
+  ];
+  await mockQuotesApi(page, { quotes: initialQuotes });
+
+  await page.goto(appPath);
+  await page.locator('button.tab', { hasText: 'Saved quotes' }).click();
+
+  const businessHeader = page.locator('table.quotes-table th', { hasText: 'Business' });
+  await businessHeader.click();
+  await expect(businessHeader).toContainText('▲');
+  let firstRowText = await page.locator('table.quotes-table tbody tr').first().textContent();
+  expect(firstRowText).toContain('Alpha Co');
+
+  await businessHeader.click();
+  await expect(businessHeader).toContainText('▼');
+  firstRowText = await page.locator('table.quotes-table tbody tr').first().textContent();
+  expect(firstRowText).toContain('Zeta Co');
+});
+
+test('shows quote count below the filter row', async ({ page }) => {
+  const initialQuotes = [
+    { id: 801, business_name: 'Gamma Co', customer: 'G', rep: 'Jack', quote_number: 'SQ-00000801', status: 'pending', quote_date: '2026-06-01', freight: 0, freight_in_gp: false, sell_price: 100, gp_percent: 10, line_items: '[]', followups: '[]', created_at: '2026-06-01T00:00:00Z' },
+    { id: 802, business_name: 'Delta Co', customer: 'D', rep: 'Jack', quote_number: 'SQ-00000802', status: 'won', quote_date: '2026-06-02', freight: 0, freight_in_gp: false, sell_price: 300, gp_percent: 30, line_items: '[]', followups: '[]', created_at: '2026-06-02T00:00:00Z' },
+  ];
+  await mockQuotesApi(page, { quotes: initialQuotes });
+
+  await page.goto(appPath);
+  await page.locator('button.tab', { hasText: 'Saved quotes' }).click();
+  await expect(page.locator('#quotes-count')).toContainText('Showing 2 quotes');
+
+  await page.locator('#filter-status').selectOption('won');
+  await expect(page.locator('#quotes-count')).toContainText('Showing 1 quote');
+});
+
+test('Ctrl+S saves the quote only while on the Calculator tab', async ({ page }) => {
+  const state = { quotes: [] };
+  await mockQuotesApi(page, state);
+
+  await page.goto(appPath);
+  await page.locator('button.tab', { hasText: 'Saved quotes' }).click();
+  await page.keyboard.press('Control+s');
+  await page.waitForTimeout(200);
+  expect(state.quotes.length).toBe(0);
+
+  await page.locator('button.tab', { hasText: /^Calculator$/ }).click();
+  await page.locator('#business-name').fill('Shortcut Co');
+  await page.locator('#customer').fill('Sam Patel');
+  await page.locator('#rep').selectOption('Jack');
+  await page.locator('#status').selectOption('pending');
+  await page.locator('#quote-number').fill('SQ-00000900');
+  await page.locator('#line-items-body input[data-field="sku"]').first().fill('TESTSKU');
+  await page.locator('#line-items-body input[data-field="desc"]').first().fill('Test carton');
+  await page.locator('#line-items-body input[data-field="qty"]').first().fill('2');
+  await page.locator('#line-items-body input[data-field="cost"]').first().fill('100');
+  await page.locator('#line-items-body input[data-field="sell"]').first().fill('150');
+
+  await page.keyboard.press('Control+s');
+  await expect(page.locator('#toast')).toContainText('Quote saved successfully');
+  expect(state.quotes.length).toBe(1);
+});
+
+test('copies the quote summary to the clipboard', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await mockQuotesApi(page);
+  await page.goto(appPath);
+
+  await page.locator('#business-name').fill('Clipboard Co');
+  await page.locator('#quote-number').fill('SQ-00001000');
+  await page.locator('#line-items-body input[data-field="sku"]').first().fill('TESTSKU');
+  await page.locator('#line-items-body input[data-field="desc"]').first().fill('Test carton');
+  await page.locator('#line-items-body input[data-field="qty"]').first().fill('2');
+  await page.locator('#line-items-body input[data-field="cost"]').first().fill('100');
+  await page.locator('#line-items-body input[data-field="sell"]').first().fill('150');
+
+  await page.locator('#copy-summary-btn').click();
+  await expect(page.locator('#toast')).toContainText('copied to clipboard');
+
+  const clipboardText = await page.evaluate(() => navigator.clipboard.readText());
+  expect(clipboardText).toContain('Clipboard Co');
+  expect(clipboardText).toContain('SQ-00001000');
+});
+
+test('shows "(inc GST)" label on the Freight column header in saved quotes', async ({ page }) => {
+  const initialQuotes = [
+    { id: 901, business_name: 'Freight Co', customer: 'F', rep: 'Jack', quote_number: 'SQ-00000901', status: 'pending', quote_date: '2026-06-01', freight: 0, freight_in_gp: false, sell_price: 100, gp_percent: 10, line_items: '[]', followups: '[]', created_at: '2026-06-01T00:00:00Z' },
+  ];
+  await mockQuotesApi(page, { quotes: initialQuotes });
+  await page.goto(appPath);
+  await page.locator('button.tab', { hasText: 'Saved quotes' }).click();
+  await expect(page.locator('table.quotes-table th', { hasText: 'Freight' })).toBeVisible();
+});
+
+test('shows an empty state on the Landed Cost Calculator when no products are present', async ({ page }) => {
+  await mockQuotesApi(page);
+  await page.goto(appPath);
+  await page.locator('button.tab', { hasText: 'Landed Cost Calculator' }).click();
+
+  await expect(page.locator('#landed-empty-state')).toBeHidden();
+
+  const count = await page.locator('#landed-product-body button.remove-btn').count();
+  for (let i = 0; i < count; i++) {
+    await page.locator('#landed-product-body tr').first().locator('button.remove-btn').click();
+  }
+
+  await expect(page.locator('#landed-empty-state')).toBeVisible();
+  await expect(page.locator('#landed-empty-state')).toContainText('Add a product to get started');
+});
+
+test('re-fills date lost / date won to today when cleared and status re-triggered', async ({ page }) => {
+  await mockQuotesApi(page);
+  await page.goto(appPath);
+
+  const today = new Date().toISOString().substring(0, 10);
+
+  await page.locator('#status').selectOption('lost');
+  await expect(page.locator('#date-outcome')).toHaveValue(today);
+  await page.locator('#date-outcome').fill('');
+  await page.locator('#status').selectOption('pending');
+  await page.locator('#status').selectOption('lost');
+  await expect(page.locator('#date-outcome')).toHaveValue(today);
+
+  await page.locator('#status').selectOption('won');
+  await expect(page.locator('#date-won')).toHaveValue(today);
+  await page.locator('#date-won').fill('');
+  await page.locator('#status').selectOption('pending');
+  await page.locator('#status').selectOption('won');
+  await expect(page.locator('#date-won')).toHaveValue(today);
+});
+
+test('hides internal fields and shows print header when printing', async ({ page }) => {
+  await mockQuotesApi(page);
+  await page.goto(appPath);
+
+  await page.locator('#business-name').fill('Print Co');
+  await page.locator('#quote-number').fill('SQ-00001100');
+
+  await page.emulateMedia({ media: 'print' });
+
+  await expect(page.locator('#print-header')).toBeVisible();
+  await expect(page.locator('#tab-calculator .action-row')).toBeHidden();
+  await expect(page.locator('#sum-card2')).toBeHidden();
+  await expect(page.locator('#sum-card3')).toBeHidden();
+  await expect(page.locator('#sum-card1')).toBeVisible();
+  await expect(page.locator('#quote-totals')).toBeVisible();
+});
+
+test('hides placeholder text on print, leaving blank fields empty', async ({ page }) => {
+  await mockQuotesApi(page);
+  await page.goto(appPath);
+
+  const businessInput = page.locator('#business-name');
+  await expect(businessInput).toHaveAttribute('placeholder', /Bris Port Logistics/);
+
+  await page.emulateMedia({ media: 'print' });
+
+  const placeholderColor = await businessInput.evaluate(el => getComputedStyle(el, '::placeholder').color);
+  expect(placeholderColor).toBe('rgba(0, 0, 0, 0)');
+  expect(await businessInput.inputValue()).toBe('');
+});
+
+test('hides line items with no qty and no sell price entirely on print', async ({ page }) => {
+  await mockQuotesApi(page);
+  await page.goto(appPath);
+
+  const firstRow = page.locator('#line-items-body tr:not(.line-slider-row)').first();
+  await firstRow.locator('input[data-field="qty"]').fill('5');
+  await firstRow.locator('input[data-field="sell"]').fill('10');
+  await page.locator('#add-line-btn').click();
+
+  const rows = page.locator('#line-items-body tr:not(.line-slider-row)');
+  const blankRow = rows.nth(1);
+
+  await page.emulateMedia({ media: 'print' });
+
+  await expect(firstRow).toBeVisible();
+  await expect(blankRow).toBeHidden();
+});
+
+test('prints line items as a table with columns instead of stacked mobile cards', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 800 });
+  await mockQuotesApi(page);
+  await page.goto(appPath);
+
+  const firstRow = page.locator('#line-items-body tr:not(.line-slider-row)').first();
+  await firstRow.locator('input[data-field="qty"]').fill('5');
+  await firstRow.locator('input[data-field="sell"]').fill('10');
+
+  await page.emulateMedia({ media: 'print' });
+
+  const table = page.locator('.line-table').first();
+  await expect(table.locator('thead')).toBeVisible();
+  await expect(table).toHaveCSS('display', 'table');
+  await expect(firstRow).toHaveCSS('display', 'table-row');
+
+  const firstCell = firstRow.locator('td:not(.no-print)').first();
+  await expect(firstCell).toHaveCSS('display', 'table-cell');
+});
+
+test('clears all line items after confirmation and leaves one fresh blank line', async ({ page }) => {
+  await mockQuotesApi(page);
+  await page.goto(appPath);
+
+  await page.locator('#line-items-body input[data-field="sku"]').nth(0).fill('FIRST');
+  await page.locator('#add-line-btn').click();
+  await page.locator('#line-items-body input[data-field="sku"]').nth(1).fill('SECOND');
+
+  await expect(page.locator('#line-items-body tr:not(.line-slider-row)')).toHaveCount(2);
+
+  await page.locator('#clear-lines-btn').click();
+
+  await expect(page.locator('#remove-overlay')).toHaveClass(/show/);
+  await expect(page.locator('#remove-overlay')).toContainText('Are you sure you want to clear all lines? This cannot be undone.');
+  await page.locator('#remove-confirm').click();
+
+  const rows = page.locator('#line-items-body tr:not(.line-slider-row)');
+  await expect(rows).toHaveCount(1);
+  await expect(rows.first().locator('input[data-field="sku"]')).toHaveValue('');
+});
+
+test('expiry date defaults to 30 days after quote date and tracks it until manually overridden', async ({ page }) => {
+  await mockQuotesApi(page);
+  await page.goto(appPath);
+
+  const quoteDate = page.locator('#quote-date');
+  const expiryDate = page.locator('#expiry-date');
+
+  // Default expiry is 30 days after the quote date.
+  const addDays = (iso, n) => {
+    const p = iso.split('-').map(Number);
+    const d = new Date(p[0], p[1] - 1, p[2]);
+    d.setDate(d.getDate() + n);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+  const startQuote = await quoteDate.inputValue();
+  expect(await expiryDate.inputValue()).toBe(addDays(startQuote, 30));
+
+  // Changing the quote date auto-updates expiry (not manually overridden yet).
+  await quoteDate.fill('2026-03-01');
+  await quoteDate.dispatchEvent('change');
+  expect(await expiryDate.inputValue()).toBe('2026-03-31');
+
+  // Manual override sticks and stops tracking the quote date.
+  await expiryDate.fill('2026-05-15');
+  await quoteDate.fill('2026-04-01');
+  await quoteDate.dispatchEvent('change');
+  expect(await expiryDate.inputValue()).toBe('2026-05-15');
+});
+
+test('template and compare-suppliers UI are hidden but present in the DOM', async ({ page }) => {
+  await mockQuotesApi(page);
+  await page.goto(appPath);
+
+  await expect(page.locator('#save-template-btn')).toBeHidden();
+  await expect(page.locator('#load-template-btn')).toBeHidden();
+  await expect(page.locator('#save-template-btn')).toHaveCount(1);
+
+  await page.locator('button:has-text("Landed Cost Calculator")').click();
+  await expect(page.locator('button:has-text("Compare suppliers / shipments")')).toBeHidden();
+});
+
+test('duplicates a line item directly below the original with a copy of its values and a unique id', async ({ page }) => {
+  await mockQuotesApi(page);
+  await page.goto(appPath);
+
+  const firstRow = page.locator('#line-items-body tr:not(.line-slider-row)').first();
+  await firstRow.locator('input[data-field="sku"]').fill('WIDGET-1');
+  await firstRow.locator('input[data-field="desc"]').fill('Blue widget');
+  await firstRow.locator('input[data-field="qty"]').fill('10');
+  await firstRow.locator('input[data-field="cost"]').fill('5');
+  await firstRow.locator('input[data-field="sell"]').fill('12');
+
+  const originalId = await firstRow.getAttribute('data-line-id');
+
+  await firstRow.locator('.dup-btn').click();
+
+  const rows = page.locator('#line-items-body tr:not(.line-slider-row)');
+  await expect(rows).toHaveCount(2);
+
+  // Copy sits directly below the original and carries the same field values.
+  const copyRow = rows.nth(1);
+  await expect(copyRow.locator('input[data-field="sku"]')).toHaveValue('WIDGET-1');
+  await expect(copyRow.locator('input[data-field="desc"]')).toHaveValue('Blue widget');
+  await expect(copyRow.locator('input[data-field="qty"]')).toHaveValue('10');
+  await expect(copyRow.locator('input[data-field="cost"]')).toHaveValue('5');
+  await expect(copyRow.locator('input[data-field="sell"]')).toHaveValue('12');
+
+  // The duplicate has its own unique id.
+  const copyId = await copyRow.getAttribute('data-line-id');
+  expect(copyId).not.toBe(originalId);
+
+  // Adjusting the copy's qty does not affect the original (a different tier).
+  await copyRow.locator('input[data-field="qty"]').fill('50');
+  await expect(rows.nth(0).locator('input[data-field="qty"]')).toHaveValue('10');
+});
+
+test('Print — Customer hides GP fields, cost prices, and the internal banner', async ({ page }) => {
+  await mockQuotesApi(page);
+  await page.goto(appPath);
+
+  await page.locator('#line-items-body input[data-field="cost"]').nth(0).fill('10');
+  await page.locator('#line-items-body input[data-field="sell"]').nth(0).fill('20');
+
+  await page.emulateMedia({ media: 'print' });
+
+  await expect(page.locator('body')).not.toHaveClass(/print-internal/);
+  await expect(page.locator('#internal-print-banner')).toBeHidden();
+  await expect(page.locator('#gp-internal-summary')).toBeHidden();
+  await expect(page.locator('.line-table thead th.gp-field').first()).toBeHidden();
+  await expect(page.locator('#sum-card2')).toBeHidden();
+  await expect(page.locator('#sum-card3')).toBeHidden();
+});
+
+test('Print — Internal shows GP fields, cost prices, GP summary, and the internal banner', async ({ page }) => {
+  await mockQuotesApi(page);
+  await page.goto(appPath);
+
+  await page.locator('#line-items-body input[data-field="cost"]').nth(0).fill('10');
+  await page.locator('#line-items-body input[data-field="sell"]').nth(0).fill('20');
+
+  await page.locator('#print-internal-btn').click();
+  await page.emulateMedia({ media: 'print' });
+
+  await expect(page.locator('body')).toHaveClass(/print-internal/);
+  await expect(page.locator('#internal-print-banner')).toBeVisible();
+  await expect(page.locator('#internal-print-banner')).toContainText('INTERNAL — NOT FOR CUSTOMER');
+  await expect(page.locator('#gp-internal-summary')).toBeVisible();
+  await expect(page.locator('.line-table thead th.gp-field').first()).toBeVisible();
+  await expect(page.locator('#sum-card2')).toBeVisible();
+  await expect(page.locator('#sum-card3')).toBeVisible();
+});
+
+test('line item row is not draggable until the drag handle is grabbed', async ({ page }) => {
+  await mockQuotesApi(page);
+  await page.goto(appPath);
+
+  const firstRow = page.locator('#line-items-body tr:not(.line-slider-row)').first();
+  await expect(firstRow).toHaveJSProperty('draggable', false);
+
+  const handleCell = firstRow.locator('.drag-handle-cell');
+  const box = await handleCell.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await expect(firstRow).toHaveJSProperty('draggable', true);
+  await page.mouse.up();
+  await expect(firstRow).toHaveJSProperty('draggable', false);
+});
+
+test('SKU and description fields behave as plain inputs with no expand-on-focus', async ({ page }) => {
+  await mockQuotesApi(page);
+  await page.goto(appPath);
+
+  const descInput = page.locator('#line-items-body input[data-field="desc"]').first();
+  await descInput.fill('A long product description that does not fit in the column width');
+
+  const unfocusedWidth = (await descInput.boundingBox()).width;
+  const unfocusedY = (await descInput.boundingBox()).y;
+  await descInput.click();
+  const focusedBox = await descInput.boundingBox();
+  expect(focusedBox.width).toBe(unfocusedWidth);
+  expect(focusedBox.y).toBe(unfocusedY);
+
+  // Triple-click should select text within the field rather than starting a drag
+  await descInput.click({ clickCount: 3 });
+  const selected = await descInput.evaluate(el => el.value.substring(el.selectionStart, el.selectionEnd));
+  expect(selected.length).toBeGreaterThan(0);
+});
+
+test('dragging the description resize handle widens description without changing SKU width', async ({ page }) => {
+  await mockQuotesApi(page);
+  await page.goto(appPath);
+
+  const skuTh = page.locator('#col-th-sku');
+  const descTh = page.locator('#col-th-desc');
+  const startSkuWidth = (await skuTh.boundingBox()).width;
+  const startDescWidth = (await descTh.boundingBox()).width;
+
+  const handle = page.locator('.col-resize-handle[data-col="col-th-desc"]');
+  const box = await handle.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 60, box.y + box.height / 2);
+  await page.mouse.up();
+
+  const endSkuWidth = (await skuTh.boundingBox()).width;
+  const endDescWidth = (await descTh.boundingBox()).width;
+
+  expect(endDescWidth).toBeGreaterThan(startDescWidth + 40);
+  expect(Math.abs(endSkuWidth - startSkuWidth)).toBeLessThan(1);
+});
+
+test('dragging the SKU resize handle widens SKU without changing description width', async ({ page }) => {
+  await mockQuotesApi(page);
+  await page.goto(appPath);
+
+  const skuTh = page.locator('#col-th-sku');
+  const descTh = page.locator('#col-th-desc');
+  const startSkuWidth = (await skuTh.boundingBox()).width;
+  const startDescWidth = (await descTh.boundingBox()).width;
+
+  const handle = page.locator('.col-resize-handle[data-col="col-th-sku"]');
+  const box = await handle.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 60, box.y + box.height / 2);
+  await page.mouse.up();
+
+  const endSkuWidth = (await skuTh.boundingBox()).width;
+  const endDescWidth = (await descTh.boundingBox()).width;
+  expect(endSkuWidth).toBeGreaterThan(startSkuWidth + 40);
+  expect(Math.abs(endDescWidth - startDescWidth)).toBeLessThan(1);
+});
+
+test('shrinking the SKU column leaves description and other columns unchanged', async ({ page }) => {
+  await mockQuotesApi(page);
+  await page.goto(appPath);
+
+  // Widen SKU first so there is room to shrink it back down.
+  const skuHandle = page.locator('.col-resize-handle[data-col="col-th-sku"]');
+  let box = await skuHandle.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 120, box.y + box.height / 2);
+  await page.mouse.up();
+
+  const skuTh = page.locator('#col-th-sku');
+  const descTh = page.locator('#col-th-desc');
+  const qtyTh = page.locator('.line-table thead th').nth(3);
+  const startSkuWidth = (await skuTh.boundingBox()).width;
+  const startDescWidth = (await descTh.boundingBox()).width;
+  const startQtyWidth = (await qtyTh.boundingBox()).width;
+
+  // Now shrink SKU back down — the failure mode where siblings used to grow.
+  box = await skuHandle.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 - 80, box.y + box.height / 2);
+  await page.mouse.up();
+
+  const endSkuWidth = (await skuTh.boundingBox()).width;
+  const endDescWidth = (await descTh.boundingBox()).width;
+  const endQtyWidth = (await qtyTh.boundingBox()).width;
+
+  expect(endSkuWidth).toBeLessThan(startSkuWidth - 40);
+  expect(Math.abs(endDescWidth - startDescWidth)).toBeLessThan(1);
+  expect(Math.abs(endQtyWidth - startQtyWidth)).toBeLessThan(1);
 });

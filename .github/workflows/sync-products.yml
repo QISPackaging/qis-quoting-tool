@@ -16,6 +16,29 @@ jobs:
       - name: Check out repo
         uses: actions/checkout@v4
 
+      - name: Diagnose connector endpoint
+        env:
+          URL: ${{ secrets.UNLEASHED_CONNECTOR_URL }}
+        run: |
+          echo "Secret URL length: ${#URL} characters"
+          echo "Secret URL ends in: ...${URL: -6}"
+          echo ""
+          echo "--- GET request ---"
+          curl -s -o /tmp/get.txt -w "GET status: %{http_code}\n" \
+            -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/126.0.0.0" "$URL" || true
+          echo "GET body (first 300 chars):"
+          head -c 300 /tmp/get.txt; echo ""
+          echo ""
+          echo "--- POST initialize (MCP handshake) ---"
+          curl -s -o /tmp/post.txt -w "POST status: %{http_code}\n" \
+            -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/126.0.0.0" \
+            -H "Content-Type: application/json" \
+            -H "Accept: application/json, text/event-stream" \
+            -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"diag","version":"1"}}}' \
+            "$URL" || true
+          echo "POST body (first 500 chars):"
+          head -c 500 /tmp/post.txt; echo ""
+
       - name: Run product sync (via Unleashed connector)
         env:
           UNLEASHED_CONNECTOR_URL: ${{ secrets.UNLEASHED_CONNECTOR_URL }}

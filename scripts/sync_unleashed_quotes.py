@@ -32,6 +32,8 @@ REPS = ["Allegra", "Jack", "Liam", "Luke", "Maddy", "Rick", "Will"]
 
 STATUS_MAP = {
     "open": "pending",
+    "draft": "pending",
+    "pending": "pending",
     "accepted": "won",
     "completed": "won",
     "declined": "lost",
@@ -311,6 +313,20 @@ def fetch_quotes(url):
                      "parameters his list_quotes tool accepts.")
 
 
+def fetch_quote_detail(url, qnum):
+    """The Quotes list endpoint returns quotes WITHOUT line items. Re-query
+    filtered by quote number, which returns full detail on some accounts.
+    Returns the quote dict (with lines if available) or None."""
+    data, err = call_tool(url, "list_quotes", {"quoteNumber": qnum, "pageSize": 200})
+    if err is not None:
+        print("Detail lookup failed for %s: %s" % (qnum, err[:200]))
+        return None
+    for item in data.get("Items", []):
+        if (item.get("QuoteNumber") or "").strip() == qnum:
+            return item
+    return None
+
+
 def main():
     url = os.environ.get("UNLEASHED_CONNECTOR_URL", "").strip()
     if not url:
@@ -334,28 +350,39 @@ def main():
     print("Supabase already has %d quote numbers" % len(existing))
 
     inserted, skipped, failed = 0, 0, 0
+    needs_detail_access = []
     for q in quotes:
-        qnum = (q.get("QuoteNumber") or "?").strip()
-        row = quote_to_row(q, cost_lookup)
-        if row is None:
-            status = (q.get("QuoteStatus") or "?")
-            nlines = len(q.get("QuoteLines") or [])
-            print("Skipped %s: %s" % (qnum,
-                  "status is Deleted" if status.lower() == "deleted"
-                  else "no line items (%d lines, status %s)" % (nlines, status)))
-            skipped += 1
-            continue
-        if not row["quote_number"]:
+        qnum = (q.get("QuoteNumber") or "").strip()
+        if not qnum:
             print("Skipped: quote has no quote number")
             skipped += 1
             continue
-        if row["quote_number"] in existing:
-            print("Skipped %s: already in the tool" % row["quote_number"])
+        if (q.get("QuoteStatus") or "").strip().lower() == "deleted":
+            print("Skipped %s: status is Deleted" % qnum)
             skipped += 1
             continue
-        if row["quote_date"] and row["quote_date"] < SYNC_FROM:
-            print("Skipped %s: dated %s, before sync start %s"
-                  % (row["quote_number"], row["quote_date"], SYNC_FROM))
+        if qnum in existing:
+            print("Skipped %s: already in the tool" % qnum)
+            skipped += 1
+            continue
+        qdate = parse_unleashed_date(q.get("QuoteDate"))
+        if qdate and qdate < SYNC_FROM:
+            print("Skipped %s: dated %s, before sync start %s" % (qnum, qdate, SYNC_FROM))
+            skipped += 1
+            continue
+
+        # List endpoint omits line items - fetch this quote's detail
+        detail = q if (q.get("QuoteLines") or []) else fetch_quote_detail(url, qnum)
+        if detail is None or not (detail.get("QuoteLines") or []):
+            print("Skipped %s: no line items even after detail lookup" % qnum)
+            needs_detail_access.append(qnum)
+            skipped += 1
+            continue
+        time.sleep(2)
+
+        row = quote_to_row(detail, cost_lookup)
+        if row is None:
+            print("Skipped %s: could not build row from detail" % qnum)
             skipped += 1
             continue
         if inserted >= MAX_INSERTS_PER_RUN:
@@ -371,6 +398,17 @@ def main():
             print("FAILED %s: %s" % (row["quote_number"], e))
 
     print("Done: %d inserted, %d skipped, %d failed." % (inserted, skipped, failed))
+    if needs_detail_access:
+        print("")
+        print("=" * 70)
+        print("ACTION NEEDED: Unleashed returned no line items for: %s"
+              % ", ".join(needs_detail_access))
+        print("The Quotes list endpoint omits lines and the quote-number lookup")
+        print("did not return them either. Ask Liam to expose quote DETAIL to the")
+        print("service token: a lookup that calls GET Quotes/{guid} on the")
+        print("Unleashed API (e.g. a get_quote tool, or a guid parameter on")
+        print("list_quotes). One small read-only addition.")
+        print("=" * 70)
     if failed:
         raise SystemExit("%d quote inserts failed - see log above." % failed)
 

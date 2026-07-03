@@ -139,15 +139,21 @@ def call_tool(url, name, arguments):
 
 # ---------- Unleashed helpers ----------
 
+BRISBANE_OFFSET_SECONDS = 10 * 3600  # AEST, UTC+10 - Queensland has no daylight saving
+
+
 def parse_unleashed_date(value):
-    """Unleashed returns dates like '/Date(1719878400000)/' or ISO strings."""
+    """Unleashed returns dates like '/Date(1719878400000)/' or ISO strings.
+
+    Timestamps are converted in Brisbane time (UTC+10). Without this, a quote
+    dated today in Unleashed can parse as yesterday and be wrongly skipped."""
     if not value:
         return None
     if isinstance(value, str):
         m = re.search(r"/Date\((\-?\d+)", value)
         if m:
             ms = int(m.group(1))
-            t = time.gmtime(ms / 1000)
+            t = time.gmtime(ms / 1000 + BRISBANE_OFFSET_SECONDS)
             return "%04d-%02d-%02d" % (t.tm_year, t.tm_mon, t.tm_mday)
         m = re.match(r"(\d{4}-\d{2}-\d{2})", value)
         if m:
@@ -329,14 +335,27 @@ def main():
 
     inserted, skipped, failed = 0, 0, 0
     for q in quotes:
+        qnum = (q.get("QuoteNumber") or "?").strip()
         row = quote_to_row(q, cost_lookup)
-        if row is None or not row["quote_number"]:
+        if row is None:
+            status = (q.get("QuoteStatus") or "?")
+            nlines = len(q.get("QuoteLines") or [])
+            print("Skipped %s: %s" % (qnum,
+                  "status is Deleted" if status.lower() == "deleted"
+                  else "no line items (%d lines, status %s)" % (nlines, status)))
+            skipped += 1
+            continue
+        if not row["quote_number"]:
+            print("Skipped: quote has no quote number")
             skipped += 1
             continue
         if row["quote_number"] in existing:
+            print("Skipped %s: already in the tool" % row["quote_number"])
             skipped += 1
             continue
         if row["quote_date"] and row["quote_date"] < SYNC_FROM:
+            print("Skipped %s: dated %s, before sync start %s"
+                  % (row["quote_number"], row["quote_date"], SYNC_FROM))
             skipped += 1
             continue
         if inserted >= MAX_INSERTS_PER_RUN:

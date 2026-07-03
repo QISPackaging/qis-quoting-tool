@@ -270,33 +270,39 @@ def existing_quote_numbers(surl, skey):
 # ---------- main ----------
 
 def fetch_quotes(url):
-    """Try the SalesQuotes endpoint first (per connector docs), fall back to Quotes."""
-    for endpoint in ("SalesQuotes", "Quotes"):
+    """Fetch quotes via the connector's list_quotes tool (service token).
+
+    Tries with a startDate filter first; if the deployed tool doesn't accept
+    that argument, falls back to unfiltered paging - the client-side date
+    check in main() keeps only quotes on/after SYNC_FROM either way."""
+    for args_base in ({"startDate": SYNC_FROM, "pageSize": 200},
+                      {"pageSize": 200},
+                      {}):
         all_items, page = [], 1
+        bad_args = False
         while True:
-            data, err = call_tool(url, "unleashed_get", {
-                "endpoint": endpoint,
-                "params": {"startDate": SYNC_FROM, "pageSize": 200},
-                "page": page,
-            })
+            args = dict(args_base)
+            args["page"] = page
+            data, err = call_tool(url, "list_quotes", args)
             if err is not None:
-                if "404" in err or "not found" in err.lower():
-                    print("Endpoint '%s' not available (%s) - trying next" % (endpoint, err[:120]))
-                    all_items = None
+                lowered = err.lower()
+                if any(k in lowered for k in ("unknown", "invalid", "unexpected", "argument", "parameter", "400")):
+                    print("list_quotes rejected args %s (%s) - retrying simpler" % (args_base, err[:120]))
+                    bad_args = True
                     break
-                raise SystemExit("Connector error fetching %s: %s" % (endpoint, err[:400]))
+                raise SystemExit("Connector error from list_quotes: %s" % err[:400])
             items = data.get("Items", [])
             all_items.extend(items)
             total_pages = int((data.get("Pagination") or {}).get("NumberOfPages") or 1)
-            print("Fetched %s page %d of %d (%d items)" % (endpoint, page, total_pages, len(items)))
+            print("Fetched quotes page %d of %d (%d items)" % (page, total_pages, len(items)))
             if page >= total_pages or not items:
                 break
             page += 1
             time.sleep(3)
-        if all_items is not None:
+        if not bad_args:
             return all_items
-    raise SystemExit("Neither SalesQuotes nor Quotes endpoint responded - ask Liam which "
-                     "endpoint the Unleashed account exposes for sales quotes.")
+    raise SystemExit("list_quotes rejected every argument combination - ask Liam what "
+                     "parameters his list_quotes tool accepts.")
 
 
 def main():

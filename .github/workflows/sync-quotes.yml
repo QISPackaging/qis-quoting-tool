@@ -3,7 +3,7 @@ name: Sync quotes from Unleashed
 on:
   schedule:
    # Every 15 minutes - quotes created in Unleashed appear in the tool quickly
-    - cron: "*/15 * * * *"
+  - cron: "7,22,37,52 * * * *"
   workflow_dispatch: {}   # manual "Run workflow" button in the Actions tab
 
 permissions:

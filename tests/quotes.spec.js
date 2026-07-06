@@ -628,6 +628,53 @@ test('shows quote count below the filter row', async ({ page }) => {
   await expect(page.locator('#quotes-count')).toContainText('Showing 1 quote');
 });
 
+test('saved quotes source filter, Unleashed badge, full quote number, and missing-cost dot', async ({ page }) => {
+  const initialQuotes = [
+    { id: 901, business_name: 'Tool Co', customer: 'T', rep: 'Jack', quote_number: 'SQ-00000578', source: 'tool', status: 'pending', quote_date: '2026-06-01', freight: 0, freight_in_gp: false, sell_price: 100, gp_percent: 50, line_items: JSON.stringify([{ sku: 'A1', desc: 'Widget', qty: 1, cost: 5, sell: 10 }]), followups: '[]', created_at: '2026-06-03T00:00:00Z' },
+    { id: 902, business_name: 'Unl Co', customer: 'U', rep: 'Jack', quote_number: 'SQ-00000902', source: 'unleashed', status: 'pending', quote_date: '2026-06-02', freight: 0, freight_in_gp: false, sell_price: 200, gp_percent: 40, line_items: JSON.stringify([{ sku: 'B2', desc: 'Gadget', qty: 2, cost: 0, sell: 20 }]), followups: '[]', created_at: '2026-06-02T00:00:00Z' },
+    { id: 903, business_name: 'Legacy Co', customer: 'L', rep: 'Sam', quote_number: 'SQ-00000903', source: null, status: 'pending', quote_date: '2026-06-01', freight: 0, freight_in_gp: false, sell_price: 300, gp_percent: 60, line_items: JSON.stringify([{ sku: 'C3', desc: 'Thing', qty: 1, cost: 7, sell: 15 }]), followups: '[]', created_at: '2026-06-01T00:00:00Z' },
+  ];
+  await mockQuotesApi(page, { quotes: initialQuotes });
+
+  await page.goto(appPath);
+  await page.locator('button.tab', { hasText: 'Saved quotes' }).click();
+  await expect(page.locator('#quotes-count')).toContainText('Showing 3 quotes');
+
+  const rows = page.locator('.quotes-table tbody tr');
+
+  // Full quote number is visible (11 chars, no ellipsis/truncation).
+  const firstQnCell = rows.first().locator('td').first();
+  await expect(firstQnCell).toContainText('SQ-00000578');
+  const scrollW = await firstQnCell.evaluate(el => el.scrollWidth);
+  const clientW = await firstQnCell.evaluate(el => el.clientWidth);
+  expect(scrollW).toBeLessThanOrEqual(clientW + 1);
+
+  // Badge only on the Unleashed row.
+  await expect(page.locator('.quotes-table tbody tr', { hasText: 'SQ-00000902' }).locator('.source-badge')).toHaveCount(1);
+  await expect(page.locator('.quotes-table tbody tr', { hasText: 'SQ-00000578' }).locator('.source-badge')).toHaveCount(0);
+  await expect(page.locator('.quotes-table tbody tr', { hasText: 'SQ-00000903' }).locator('.source-badge')).toHaveCount(0);
+
+  // Missing-cost amber dot only on the zero-cost (Unleashed) row.
+  await expect(page.locator('.quotes-table tbody tr', { hasText: 'SQ-00000902' }).locator('.missing-cost-dot')).toHaveCount(1);
+  await expect(page.locator('.quotes-table tbody tr', { hasText: 'SQ-00000578' }).locator('.missing-cost-dot')).toHaveCount(0);
+  await expect(page.locator('.quotes-table tbody tr', { hasText: 'SQ-00000903' }).locator('.missing-cost-dot')).toHaveCount(0);
+
+  // Source filter — Tool quotes includes null-source legacy rows.
+  await page.locator('#filter-source').selectOption('tool');
+  await expect(page.locator('#quotes-count')).toContainText('Showing 2 quotes');
+  await expect(page.locator('.quotes-table tbody tr', { hasText: 'SQ-00000902' })).toHaveCount(0);
+
+  // Source filter — Unleashed quotes only.
+  await page.locator('#filter-source').selectOption('unleashed');
+  await expect(page.locator('#quotes-count')).toContainText('Showing 1 quote');
+  await expect(page.locator('.quotes-table tbody tr', { hasText: 'SQ-00000902' })).toHaveCount(1);
+
+  // Clear filters resets the source dropdown.
+  await page.locator('#clear-filters-btn').click();
+  await expect(page.locator('#filter-source')).toHaveValue('');
+  await expect(page.locator('#quotes-count')).toContainText('Showing 3 quotes');
+});
+
 test('Ctrl+S saves the quote only while on the Calculator tab', async ({ page }) => {
   const state = { quotes: [] };
   await mockQuotesApi(page, state);

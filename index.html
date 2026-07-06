@@ -127,6 +127,10 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
 .quotes-table td{padding:5px 6px;border-bottom:1px solid #e8e8e8;color:#1a1a1a;vertical-align:middle;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .quotes-table tr:hover td{background:#f5f5f3}
 .quotes-table th:nth-child(10),.quotes-table td:nth-child(10){width:190px;white-space:nowrap;text-overflow:clip;overflow:visible}
+/* Quote # column must always show the full 11-char SQ-XXXXXXXX number plus source badge — never truncate. */
+.quotes-table th:nth-child(1),.quotes-table td:nth-child(1){width:135px;white-space:nowrap;text-overflow:clip;overflow:visible}
+.source-badge{display:inline-block;margin-left:6px;padding:1px 5px;font-size:9px;font-weight:600;line-height:1.4;letter-spacing:0.03em;color:#555;background:#ececec;border:1px solid #d8d8d8;border-radius:4px;vertical-align:middle}
+.missing-cost-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#E6A817;margin-left:5px;vertical-align:middle}
 .status-pill.pending{background:#E6F1FB;color:#0C447C}
 .status-pill.won{background:#EAF3DE;color:#27500A}
 .status-pill.lost{background:#FCEBEB;color:#791F1F}
@@ -721,6 +725,11 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
       <option value="amber">30–64% (below target)</option>
       <option value="green">65%+ (on target)</option>
     </select>
+    <select id="filter-source" onchange="loadQuotes()">
+      <option value="">All sources</option>
+      <option value="tool">Tool quotes</option>
+      <option value="unleashed">Unleashed quotes</option>
+    </select>
     <input type="text" id="filter-customer" placeholder="Search business..." oninput="debounceLoad()" style="width:180px">
     <input type="text" id="filter-rep" placeholder="Search rep..." oninput="debounceLoad()" style="width:140px">
     <button class="new-btn" id="clear-filters-btn" onclick="clearQuoteFilters()">Clear filters</button>
@@ -728,6 +737,8 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
   <div id="quotes-count" style="font-size:12px;color:#888;margin-bottom:0.5rem"></div>
   <div class="legend" id="quotes-legend" style="justify-content:flex-start;border-top:none;padding:0 0 0.75rem">
     <div class="legend-item"><span class="overdue-dot" style="margin-left:0"></span><span>Overdue follow-up (pending quote, follow-up date in the past)</span></div>
+    <div class="legend-item"><span class="source-badge" style="margin-left:0">UNL</span><span>Imported from Unleashed</span></div>
+    <div class="legend-item"><span class="missing-cost-dot" style="margin-left:0"></span><span>One or more lines missing cost — GP not final</span></div>
     <div class="legend-item"><span>Tab badge — e.g. "Saved quotes (1)" — shows the number of quotes with an overdue follow-up</span></div>
   </div>
   <div id="customer-history-section" class="customer-history" style="display:none">
@@ -2641,12 +2652,31 @@ let _sortDir=1;
 function clearQuoteFilters(){
   document.getElementById('filter-status').value='';
   document.getElementById('filter-gp').value='';
+  document.getElementById('filter-source').value='';
   document.getElementById('filter-customer').value='';
   document.getElementById('filter-rep').value='';
   loadQuotes();
 }
 
 const QUOTES_SORT_FIELDS={'Date':'quote_date','Business':'business_name','Total sell':'sell_price','GP%':'gp_percent','Status':'status'};
+
+// Source column: null/blank means a quote saved in this tool.
+function quoteSource(q){
+  const s=(q&&q.source||'').toString().toLowerCase().trim();
+  return s==='unleashed'?'unleashed':'tool';
+}
+
+// True when any line has zero cost but a real SKU/description — computed from
+// line_items each render so the indicator clears once real costs are entered.
+function quoteHasMissingCost(q){
+  let lines=[];
+  try{lines=JSON.parse((q&&q.line_items)||'[]');}catch(e){return false;}
+  if(!Array.isArray(lines))return false;
+  return lines.some(l=>{
+    const hasContent=((l.sku||'').toString().trim()!=='')||((l.desc||'').toString().trim()!=='');
+    return hasContent&&(parseFloat(l.cost)||0)===0;
+  });
+}
 
 function sortQuotesBy(field){
   if(_sortField===field)_sortDir*=-1;
@@ -2662,6 +2692,7 @@ async function loadQuotes(){
   const fc=document.getElementById('filter-customer').value.toLowerCase().trim();
   const fr=document.getElementById('filter-rep').value.toLowerCase();
   const fg=document.getElementById('filter-gp').value;
+  const fsrc=document.getElementById('filter-source').value;
   try{
     const loadCtrl=new AbortController();
     const loadTimeout=setTimeout(()=>loadCtrl.abort(),15000);
@@ -2674,6 +2705,8 @@ async function loadQuotes(){
       (q.business_name||'').toLowerCase().includes(fc)||
       (q.customer||'').toLowerCase().includes(fc));
     if(fr)data=data.filter(q=>(q.rep||'').toLowerCase().includes(fr));
+    // Source filter — null/empty source is treated as 'tool'.
+    if(fsrc)data=data.filter(q=>quoteSource(q)===fsrc);
     // FIX Q8: GP filter uses constants
     if(fg==='red')data=data.filter(q=>(q.gp_percent||0)<GP_RED);
     else if(fg==='amber')data=data.filter(q=>(q.gp_percent||0)>=GP_RED&&(q.gp_percent||0)<GP_AMBER);
@@ -2723,8 +2756,19 @@ async function loadQuotes(){
     data.forEach(q=>{
       const sid=Number(q.id);
       const tr=document.createElement('tr');
+      // Quote # cell — full number plus a source badge for Unleashed imports.
+      const qnTd=document.createElement('td');
+      qnTd.appendChild(document.createTextNode(q.quote_number||'—'));
+      if(quoteSource(q)==='unleashed'){
+        const badge=document.createElement('span');
+        badge.className='source-badge';
+        badge.textContent='UNL';
+        badge.title='Imported from Unleashed';
+        badge.setAttribute('aria-label','Imported from Unleashed');
+        qnTd.appendChild(badge);
+      }
+      tr.appendChild(qnTd);
       const cells=[
-        q.quote_number||'—',
         fmtDate(q.quote_date),
         q.business_name||'',
         q.customer||'',
@@ -2736,7 +2780,14 @@ async function loadQuotes(){
       // GP% cell with colour
       const gpTd=document.createElement('td');
       gpTd.style.cssText='font-weight:500;color:'+gpColor(q.gp_percent||0);
-      gpTd.textContent=(q.gp_percent||0).toFixed(1)+'%'+(q.freight_in_gp?' *':'');
+      gpTd.appendChild(document.createTextNode((q.gp_percent||0).toFixed(1)+'%'+(q.freight_in_gp?' *':'')));
+      if(quoteHasMissingCost(q)){
+        const mcDot=document.createElement('span');
+        mcDot.className='missing-cost-dot';
+        mcDot.title='One or more lines missing cost — GP not final';
+        mcDot.setAttribute('aria-label','One or more lines missing cost — GP not final');
+        gpTd.appendChild(mcDot);
+      }
       tr.appendChild(gpTd);
       // Status pill
       const statusTd=document.createElement('td');

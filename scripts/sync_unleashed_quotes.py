@@ -246,6 +246,7 @@ def quote_to_row(q, cost_lookup):
         "line_items": json.dumps(lines),
         "followups": "[]",
         "notes": notes,
+        "source": "unleashed",
     }
 
 

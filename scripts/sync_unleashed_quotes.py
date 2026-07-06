@@ -163,6 +163,18 @@ def parse_unleashed_date(value):
     return None
 
 
+def get_lines(q):
+    """Unleashed's field is SalesQuoteLines (QuoteLines kept as fallback)."""
+    return q.get("SalesQuoteLines") or q.get("QuoteLines") or []
+
+
+def num(value):
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return 0.0
+
+
 def map_rep(sales_person):
     name = ""
     if isinstance(sales_person, dict):
@@ -186,19 +198,18 @@ def quote_to_row(q, cost_lookup):
     missing_cost = []
     total_sell = 0.0
     total_cost = 0.0
-    for i, ln in enumerate(q.get("QuoteLines") or [], start=1):
+    for i, ln in enumerate(get_lines(q), start=1):
         prod = ln.get("Product") or {}
         sku = (prod.get("ProductCode") or "").strip()
         desc = (prod.get("ProductDescription") or ln.get("LineComments") or "").strip()
-        try:
-            qty = float(ln.get("OrderQuantity") or 0)
-        except (TypeError, ValueError):
-            qty = 0.0
-        try:
-            sell = float(ln.get("UnitPrice") or 0)
-        except (TypeError, ValueError):
-            sell = 0.0
-        cost = cost_lookup.get(sku, 0.0)
+        qty = num(ln.get("QuoteQuantity") or ln.get("OrderQuantity"))
+        # Effective unit sell: LineTotal/qty honours any discount on the line
+        line_total = num(ln.get("LineTotal"))
+        sell = round(line_total / qty, 4) if (line_total > 0 and qty > 0) else num(ln.get("UnitPrice"))
+        # Cost: Unleashed's own line cost snapshot first, product file second
+        cost = num(ln.get("UnitCost"))
+        if cost == 0.0:
+            cost = cost_lookup.get(sku, 0.0)
         if sku and cost == 0.0:
             missing_cost.append(sku)
         lines.append({"id": i, "sku": sku, "desc": desc,
@@ -207,7 +218,7 @@ def quote_to_row(q, cost_lookup):
         total_cost += qty * cost
 
     if not lines:
-        return None
+        return None  # caller logs the reason and the fields actually seen
 
     gp = ((total_sell - total_cost) / total_sell * 100.0) if total_sell > 0 else 0.0
     notes = "Imported from Unleashed."
@@ -350,7 +361,7 @@ def main():
     print("Supabase already has %d quote numbers" % len(existing))
 
     inserted, skipped, failed = 0, 0, 0
-    needs_detail_access = []
+    no_line_quotes = []
     for q in quotes:
         qnum = (q.get("QuoteNumber") or "").strip()
         if not qnum:
@@ -371,14 +382,14 @@ def main():
             skipped += 1
             continue
 
-        # List endpoint omits line items - fetch this quote's detail
-        detail = q if (q.get("QuoteLines") or []) else fetch_quote_detail(url, qnum)
-        if detail is None or not (detail.get("QuoteLines") or []):
-            print("Skipped %s: no line items even after detail lookup" % qnum)
-            needs_detail_access.append(qnum)
+        detail = q if get_lines(q) else fetch_quote_detail(url, qnum)
+        if detail is None or not get_lines(detail):
+            print("Skipped %s: quote has no line items in Unleashed" % qnum)
+            # Premise check: show what the response ACTUALLY contains
+            print("  fields seen: %s" % ", ".join(sorted((detail or q).keys())[:25]))
+            no_line_quotes.append(qnum)
             skipped += 1
             continue
-        time.sleep(2)
 
         row = quote_to_row(detail, cost_lookup)
         if row is None:
@@ -398,17 +409,9 @@ def main():
             print("FAILED %s: %s" % (row["quote_number"], e))
 
     print("Done: %d inserted, %d skipped, %d failed." % (inserted, skipped, failed))
-    if needs_detail_access:
-        print("")
-        print("=" * 70)
-        print("ACTION NEEDED: Unleashed returned no line items for: %s"
-              % ", ".join(needs_detail_access))
-        print("The Quotes list endpoint omits lines and the quote-number lookup")
-        print("did not return them either. Ask Liam to expose quote DETAIL to the")
-        print("service token: a lookup that calls GET Quotes/{guid} on the")
-        print("Unleashed API (e.g. a get_quote tool, or a guid parameter on")
-        print("list_quotes). One small read-only addition.")
-        print("=" * 70)
+    if no_line_quotes:
+        print("Note: %d quote(s) had no line items and were skipped: %s"
+              % (len(no_line_quotes), ", ".join(no_line_quotes)))
     if failed:
         raise SystemExit("%d quote inserts failed - see log above." % failed)
 

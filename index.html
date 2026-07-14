@@ -1194,10 +1194,10 @@ function updateLandedProductRows(){
     const landedCartonField=row.querySelector('[data-field="aud-landed-cost-per-carton"]');
     const landedBagField=row.querySelector('[data-field="aud-landed-cost-per-bag"]');
     const totalLandedField=row.querySelector('[data-field="aud-total-landed"]');
-    if(audPriceField) audPriceField.value=fmtCurrency(audPricePerCarton);
-    if(freightField) freightField.value=fmtCurrency(freightPerCarton);
-    if(landedCartonField) landedCartonField.value=fmtCurrency(landedCostPerCarton);
-    if(landedBagField) landedBagField.value=fmtCurrency(landedCostPerBag);
+    if(audPriceField) audPriceField.value=fmtCurrency4(audPricePerCarton);
+    if(freightField) freightField.value=fmtCurrency4(freightPerCarton);
+    if(landedCartonField) landedCartonField.value=fmtCurrency4(landedCostPerCarton);
+    if(landedBagField) landedBagField.value=fmtCurrency4(landedCostPerBag);
     if(totalLandedField) totalLandedField.value=fmtCurrency(totalLanded);
 
     // Rounded-up indicator: order qty isn't an exact multiple of qty/carton.
@@ -1430,6 +1430,10 @@ function escHtml(s){
 function calcGP(cost,sell){return sell===0?0:((sell-cost)/sell)*100;}
 function fmtCurrency(n){
   return '$'+(parseFloat(n)||0).toLocaleString('en-AU',{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+// Per-unit costs display at 4dp to match the costing spreadsheet; underlying maths keeps full precision.
+function fmtCurrency4(n){
+  return '$'+(parseFloat(n)||0).toLocaleString('en-AU',{minimumFractionDigits:4,maximumFractionDigits:4});
 }
 // FIX Q8: all threshold comparisons now use constants
 function getColor(gp){return gp<GP_RED?'red':gp<GP_AMBER?'amber':'green';}

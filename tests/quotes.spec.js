@@ -382,6 +382,39 @@ test('sends landed cost lines into the calculator as cost prices', async ({ page
   await expect(page.locator('#line-items-body input[data-field="cost"]').first()).not.toHaveValue('');
 });
 
+test('landed cost: per-unit costs show 4 decimals, order money stays 2 decimals', async ({ page }) => {
+  await mockQuotesApi(page);
+  await page.goto(appPath);
+  await page.locator('button.tab', { hasText: 'Landed Cost Calculator' }).click();
+
+  await page.locator('#landed-ship-mode').selectOption('20ft FCL');
+  await page.locator('#landed-origin-port').selectOption('Colombo');
+  await page.locator('#landed-exchange-rate').fill('0.65');
+
+  await page.locator('#landed-product-body input[data-field="usd-price"]').first().fill('4.50');
+  await page.locator('#landed-product-body input[data-field="qty-per-carton"]').first().fill('50');
+  await page.locator('#landed-product-body input[data-field="cbm-per-carton"]').first().fill('0.5');
+  await page.locator('#landed-product-body input[data-field="cartons"]').first().fill('2');
+
+  // Per-unit fields: exactly 4 decimal places.
+  for (const field of ['aud-price-per-carton', 'aud-freight-per-carton', 'aud-landed-cost-per-carton', 'aud-landed-cost-per-bag']) {
+    const val = await page.locator(`#landed-product-body input[data-field="${field}"]`).first().inputValue();
+    expect(val).toMatch(/^\$[\d,]+\.\d{4}$/);
+  }
+
+  // Whole-order money: exactly 2 decimal places.
+  const rowTotal = await page.locator('#landed-product-body input[data-field="aud-total-landed"]').first().inputValue();
+  expect(rowTotal).toMatch(/^\$[\d,]+\.\d{2}$/);
+  const grand = (await page.locator('#landed-total-landed').textContent()).trim();
+  expect(grand).toMatch(/^\$[\d,]+\.\d{2}$/);
+
+  // Send to Quote passes the 4-decimal landed/bag value into the cost field.
+  const bagVal = parseFloat((await page.locator('#landed-product-body input[data-field="aud-landed-cost-per-bag"]').first().inputValue()).replace(/[^0-9.]/g, ''));
+  await page.locator('#send-to-quote-btn').click();
+  const cost = parseFloat(await page.locator('#line-items-body input[data-field="cost"]').first().inputValue());
+  expect(Math.abs(cost - bagVal)).toBeLessThan(0.00005);
+});
+
 test('landed cost: order qty computes cartons (rounding up) and marks the rounded row', async ({ page }) => {
   await mockQuotesApi(page);
   await page.goto(appPath);

@@ -24,6 +24,20 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .cbm-calc-cell .cbm-field input{width:60px;font-size:13px;padding:4px 5px;height:30px;text-align:center;border:1px solid #ccc;border-radius:5px}
 .cbm-calc-cell .cbm-x{font-size:13px;color:#999;padding-bottom:7px}
 .cbm-calc-cell .unit-btn{font-size:10px;padding:2px 5px;height:24px;border-radius:5px;border:1px solid #e0e0e0;background:#f5f5f3;cursor:pointer;white-space:nowrap}
+/* CBM L×W×H inputs collapse behind a small icon to save table width; they pop out inline when opened. */
+.cbm-calc-cell{position:relative}
+.cbm-toggle{font-size:14px;line-height:1;padding:4px 6px;height:30px;border-radius:5px;border:1px solid #e0e0e0;background:#f5f5f3;cursor:pointer}
+.cbm-toggle.has-dims{border-color:#1a1a1a;color:#1a1a1a}
+.cbm-lwh-pop{display:none;position:absolute;top:calc(100% + 4px);left:0;z-index:20;background:#fff;border:1px solid #ccc;border-radius:8px;padding:8px;box-shadow:0 6px 18px rgba(0,0,0,0.12);flex-direction:column;gap:6px}
+.cbm-calc-cell.open .cbm-lwh-pop{display:flex}
+/* Show-workings reference panels — quiet, monospace, hidden until the feature is toggled on. */
+.landed-workings-row{display:none}
+.line-table.show-workings .landed-workings-row{display:table-row}
+.landed-workings-cell{background:#fafaf9;padding:0 8px}
+.workings-toggle{font-size:11px;color:#666;background:none;border:none;cursor:pointer;padding:6px 2px}
+.workings-toggle:hover{color:#1a1a1a}
+.workings-panel{display:none;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;color:#666;line-height:1.6;padding:2px 0 8px 14px;white-space:pre-wrap}
+.landed-workings-row.open .workings-panel{display:block}
 .drag-handle-cell{text-align:center;cursor:grab;width:24px}
 .drag-handle{color:#aaa;font-size:15px;user-select:none}
 #line-items-body tr.dragging{opacity:0.4}
@@ -678,23 +692,24 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
   <div class="section">
     <div class="section-title">Products</div>
     <div class="line-wrap">
-      <table class="line-table">
+      <table class="line-table" id="landed-table">
         <thead>
           <tr>
             <th style="width:78px">SKU</th>
             <th style="min-width:130px">Description</th>
             <th style="width:74px">USD price/bag</th>
-            <th style="width:70px">Qty/carton</th>
-            <th style="width:74px">Order qty</th>
-            <th style="width:190px">CBM calc (L×W×H)</th>
+            <th style="width:68px">Qty/carton</th>
+            <th style="width:70px">Order qty</th>
+            <th style="width:46px">CBM calc</th>
             <th style="width:70px">CBM/carton</th>
-            <th style="width:70px">Cartons</th>
-            <th style="width:60px">Duty %</th>
-            <th style="width:86px">AUD price/carton</th>
-            <th style="width:96px">AUD freight &amp; customs/carton</th>
-            <th style="width:90px">AUD landed/carton</th>
-            <th style="width:90px">AUD landed/bag</th>
-            <th style="width:96px">Total landed (AUD)</th>
+            <th style="width:66px">Cartons</th>
+            <th style="width:74px">Total CBM</th>
+            <th style="width:56px">Duty %</th>
+            <th style="width:84px">AUD price/carton</th>
+            <th style="width:92px">AUD freight &amp; customs/carton</th>
+            <th style="width:86px">AUD landed/carton</th>
+            <th style="width:86px">AUD landed/bag</th>
+            <th style="width:92px">Total landed (AUD)</th>
             <th style="width:28px" class="no-print"></th>
           </tr>
         </thead>
@@ -703,6 +718,7 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
       <div id="landed-empty-state" class="empty-state" style="display:none">Add a product to get started</div>
     </div>
     <button class="add-btn no-print" id="add-landed-btn" onclick="addLandedProduct()">+ Add product</button>
+    <button class="add-btn no-print" id="toggle-workings-btn" onclick="toggleLandedWorkings()">Show workings</button>
     <div class="quote-totals" style="margin-top:1rem">
       <div class="quote-totals-row"><span>Total CBM</span><span id="landed-total-cbm">0.00</span></div>
       <div class="quote-totals-row"><span>Total cartons</span><span id="landed-total-cartons">0</span></div>
@@ -994,7 +1010,7 @@ function updateCapacityBanner(mode,totalCbm){
 }
 
 function getLandedTotalCbm(){
-  const rows=document.querySelectorAll('#landed-product-body tr');
+  const rows=document.querySelectorAll('#landed-product-body tr.landed-product-row');
   return Array.from(rows).reduce((sum,row)=>{
     const cbm=parseMoney(row.querySelector('[data-field="cbm-per-carton"]').value);
     const cartons=parseFloat(row.querySelector('[data-field="cartons"]').value)||0;
@@ -1080,6 +1096,7 @@ function computeRowCbm(row){
 function addLandedProduct(){
   const tbody=document.getElementById('landed-product-body');
   const row=document.createElement('tr');
+  row.className='landed-product-row';
   row.innerHTML=`
     <td><input type="text" data-field="sku" value=""></td>
     <td><input type="text" data-field="desc" value=""></td>
@@ -1087,17 +1104,21 @@ function addLandedProduct(){
     <td><input type="number" data-field="qty-per-carton" min="0" step="1" value=""></td>
     <td><input type="number" data-field="order-qty" min="0" step="1" value=""></td>
     <td><div class="cbm-calc-cell">
-      <div class="cbm-lwh">
-        <div class="cbm-field"><label>L</label><input type="number" data-field="cbm-l" min="0" step="0.1" placeholder="0"></div>
-        <span class="cbm-x">&times;</span>
-        <div class="cbm-field"><label>W</label><input type="number" data-field="cbm-w" min="0" step="0.1" placeholder="0"></div>
-        <span class="cbm-x">&times;</span>
-        <div class="cbm-field"><label>H</label><input type="number" data-field="cbm-h" min="0" step="0.1" placeholder="0"></div>
+      <button type="button" class="cbm-toggle" aria-label="Enter dimensions" title="Enter L×W×H dimensions">&#128208;</button>
+      <div class="cbm-lwh-pop">
+        <div class="cbm-lwh">
+          <div class="cbm-field"><label>L</label><input type="number" data-field="cbm-l" min="0" step="0.1" placeholder="0"></div>
+          <span class="cbm-x">&times;</span>
+          <div class="cbm-field"><label>W</label><input type="number" data-field="cbm-w" min="0" step="0.1" placeholder="0"></div>
+          <span class="cbm-x">&times;</span>
+          <div class="cbm-field"><label>H</label><input type="number" data-field="cbm-h" min="0" step="0.1" placeholder="0"></div>
+        </div>
+        <button type="button" class="unit-btn" data-field="cbm-unit" data-unit="cm">cm</button>
       </div>
-      <button type="button" class="unit-btn" data-field="cbm-unit" data-unit="cm">cm</button>
     </div></td>
     <td><input type="number" data-field="cbm-per-carton" min="0" step="0.01" value=""></td>
     <td><input type="number" data-field="cartons" min="0" step="1" value=""></td>
+    <td><input type="text" data-field="total-cbm" readonly value=""></td>
     <td><input type="number" data-field="duty-pct" min="0" step="0.1" placeholder="0" value=""></td>
     <td><input type="text" data-field="aud-price-per-carton" readonly value=""></td>
     <td><input type="text" data-field="aud-freight-per-carton" readonly value=""></td>
@@ -1107,8 +1128,19 @@ function addLandedProduct(){
     <td class="no-print"><button class="remove-btn" aria-label="Remove product">×</button></td>
   `;
   tbody.appendChild(row);
+  // Workings reference row (sibling), hidden on print and until "Show workings" is on.
+  const workingsRow=document.createElement('tr');
+  workingsRow.className='landed-workings-row no-print';
+  workingsRow.innerHTML='<td colspan="16" class="landed-workings-cell">'
+    +'<button type="button" class="workings-toggle">&#9656; Workings</button>'
+    +'<div class="workings-panel"></div></td>';
+  tbody.appendChild(workingsRow);
+  workingsRow.querySelector('.workings-toggle').addEventListener('click',()=>{
+    workingsRow.classList.toggle('open');
+    workingsRow.querySelector('.workings-toggle').innerHTML=(workingsRow.classList.contains('open')?'&#9662;':'&#9656;')+' Workings';
+  });
   const removeBtn=row.querySelector('.remove-btn');
-  if(removeBtn){removeBtn.addEventListener('click',()=>{row.remove();updateLandedCalculator();});}
+  if(removeBtn){removeBtn.addEventListener('click',()=>{row.remove();workingsRow.remove();updateLandedCalculator();});}
   row.querySelectorAll('input').forEach(input=>{
     input.addEventListener('input',()=>{
       const f=input.dataset.field;
@@ -1120,6 +1152,9 @@ function addLandedProduct(){
       updateLandedCalculator();
     });
   });
+  const cbmToggle=row.querySelector('.cbm-toggle');
+  const cbmCell=row.querySelector('.cbm-calc-cell');
+  cbmToggle.addEventListener('click',()=>cbmCell.classList.toggle('open'));
   const unitBtn=row.querySelector('[data-field="cbm-unit"]');
   unitBtn.addEventListener('click',()=>{
     unitBtn.dataset.unit=unitBtn.dataset.unit==='cm'?'mm':'cm';
@@ -1154,11 +1189,40 @@ function syncLandedRowQuantities(row,source){
   }
 }
 
+function toggleLandedWorkings(){
+  const table=document.getElementById('landed-table');
+  const on=table.classList.toggle('show-workings');
+  document.getElementById('toggle-workings-btn').textContent=on?'Hide workings':'Show workings';
+  if(on) updateLandedCalculator();
+}
+
+// Build the per-row calculation chain as plain text. Every result is formatted
+// with the SAME formatter the visible field uses, so the workings can never
+// drift from the displayed values. Pure function of the passed-in live values.
+function buildLandedWorkings(v){
+  const isFcl=FCL_CONTAINER_CBM[v.mode]!=null;
+  const usd='$'+(v.usdPrice||0).toFixed(2);
+  const divisorStr=isFcl?String(FCL_CONTAINER_CBM[v.mode]):(v.totalCbm||0).toFixed(4);
+  const lines=[];
+  lines.push(isFcl
+    ? 'Fixed container capacity: '+FCL_CONTAINER_CBM[v.mode]+' CBM ('+v.mode+')'
+    : 'Total shipment CBM: '+(v.totalCbm||0).toFixed(4)+' (LCL)');
+  lines.push('AUD price/carton: '+usd+' USD × '+v.qtyPerCarton+' bags/ctn ÷ '+v.exchangeRate+' = '+fmtCurrency4(v.audPricePerCarton));
+  lines.push('Freight/carton: ('+fmtCurrency(v.totalCharge)+' ÷ '+divisorStr+' container CBM) × '+(v.cbmPerCarton||0).toFixed(4)+' CBM/ctn = '+fmtCurrency4(v.freightPerCarton));
+  if(v.dutyPct>0){
+    lines.push('Duty/carton: ('+fmtCurrency4(v.audPricePerCarton)+' + '+fmtCurrency4(v.freightPerCarton)+') × '+v.dutyPct+'% = '+fmtCurrency4(v.dutyPerCarton));
+  }
+  lines.push('Landed/carton: '+fmtCurrency4(v.audPricePerCarton)+' + '+fmtCurrency4(v.freightPerCarton)+(v.dutyPct>0?' + '+fmtCurrency4(v.dutyPerCarton):'')+' = '+fmtCurrency4(v.landedCostPerCarton));
+  lines.push('Landed/bag: '+fmtCurrency4(v.landedCostPerCarton)+' ÷ '+v.qtyPerCarton+' bags/ctn = '+fmtCurrency4(v.landedCostPerBag));
+  lines.push('Total landed: '+v.cartons+' ctns × '+fmtCurrency4(v.landedCostPerCarton)+' = '+fmtCurrency(v.totalLanded));
+  return lines.join('\n');
+}
+
 function updateLandedProductRows(){
   const exchangeRate=parseMoney(document.getElementById('landed-exchange-rate').value) || 1;
   const totalCharge=parseMoney(document.getElementById('landed-total-charge').value.replace(/[^0-9.-]/g,''));
   const mode=document.getElementById('landed-ship-mode').value;
-  const rows=document.querySelectorAll('#landed-product-body tr');
+  const rows=document.querySelectorAll('#landed-product-body tr.landed-product-row');
   let totalCbm=0;
   let totalCartons=0;
   rows.forEach(row=>{
@@ -1187,6 +1251,7 @@ function updateLandedProductRows(){
     const landedCostPerCarton = audPricePerCarton + freightPerCarton + dutyPerCarton;
     const landedCostPerBag = qtyPerCarton>0 ? landedCostPerCarton / qtyPerCarton : 0;
     const totalLanded = landedCostPerCarton * cartons;
+    const rowTotalCbm = cbmPerCarton * cartons;
     grandTotalLanded += totalLanded;
 
     const audPriceField=row.querySelector('[data-field="aud-price-per-carton"]');
@@ -1194,11 +1259,17 @@ function updateLandedProductRows(){
     const landedCartonField=row.querySelector('[data-field="aud-landed-cost-per-carton"]');
     const landedBagField=row.querySelector('[data-field="aud-landed-cost-per-bag"]');
     const totalLandedField=row.querySelector('[data-field="aud-total-landed"]');
+    const totalCbmField=row.querySelector('[data-field="total-cbm"]');
     if(audPriceField) audPriceField.value=fmtCurrency4(audPricePerCarton);
     if(freightField) freightField.value=fmtCurrency4(freightPerCarton);
     if(landedCartonField) landedCartonField.value=fmtCurrency4(landedCostPerCarton);
     if(landedBagField) landedBagField.value=fmtCurrency4(landedCostPerBag);
     if(totalLandedField) totalLandedField.value=fmtCurrency(totalLanded);
+    if(totalCbmField) totalCbmField.value=rowTotalCbm.toFixed(4);
+
+    // Mark the CBM toggle when dimensions/CBM are present, so the collapsed cell hints it has data.
+    const cbmToggle=row.querySelector('.cbm-toggle');
+    if(cbmToggle) cbmToggle.classList.toggle('has-dims',cbmPerCarton>0);
 
     // Rounded-up indicator: order qty isn't an exact multiple of qty/carton.
     const orderInput=row.querySelector('[data-field="order-qty"]');
@@ -1211,8 +1282,19 @@ function updateLandedProductRows(){
     } else {
       cartonsInput.removeAttribute('title');
     }
+
+    // Live workings — built from the SAME variables the calc above uses.
+    const workingsRow=row.nextElementSibling;
+    if(workingsRow&&workingsRow.classList.contains('landed-workings-row')){
+      const panel=workingsRow.querySelector('.workings-panel');
+      if(panel) panel.textContent=buildLandedWorkings({
+        usdPrice,qtyPerCarton,exchangeRate,totalCharge,cbmDivisor,cbmPerCarton,
+        cartons,dutyPct,audPricePerCarton,freightPerCarton,dutyPerCarton,
+        landedCostPerCarton,landedCostPerBag,totalLanded,mode,totalCbm
+      });
+    }
   });
-  document.getElementById('landed-total-cbm').textContent=totalCbm.toFixed(2);
+  document.getElementById('landed-total-cbm').textContent=totalCbm.toFixed(4);
   document.getElementById('landed-total-cartons').textContent=String(totalCartons);
   document.getElementById('landed-total-landed').textContent=fmtCurrency(grandTotalLanded);
   updateCapacityBanner(document.getElementById('landed-ship-mode').value,totalCbm);
@@ -1238,7 +1320,7 @@ function getShipments(){
 function setShipments(list){localStorage.setItem(SHIPMENTS_KEY,JSON.stringify(list));}
 
 function captureLandedState(){
-  const rows=Array.from(document.querySelectorAll('#landed-product-body tr'));
+  const rows=Array.from(document.querySelectorAll('#landed-product-body tr.landed-product-row'));
   const products=rows.map(row=>({
     sku:row.querySelector('[data-field="sku"]').value,
     desc:row.querySelector('[data-field="desc"]').value,
@@ -1321,7 +1403,7 @@ function loadShipment(id){
   _totalManualOverride=false;
   document.getElementById('landed-product-body').innerHTML='';
   st.products.forEach(()=>addLandedProduct());
-  const rows=document.querySelectorAll('#landed-product-body tr');
+  const rows=document.querySelectorAll('#landed-product-body tr.landed-product-row');
   st.products.forEach((p,i)=>{
     const row=rows[i];
     row.querySelector('[data-field="sku"]').value=p.sku||'';
@@ -1382,7 +1464,7 @@ function toggleCompareShipments(){
 }
 
 function sendLandedToQuote(){
-  const rows=document.querySelectorAll('#landed-product-body tr');
+  const rows=document.querySelectorAll('#landed-product-body tr.landed-product-row');
   const validRows=Array.from(rows).filter(row=>{
     const sku=row.querySelector('[data-field="sku"]').value.trim();
     const desc=row.querySelector('[data-field="desc"]').value.trim();

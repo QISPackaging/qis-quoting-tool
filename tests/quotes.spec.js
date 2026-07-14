@@ -493,6 +493,80 @@ test('landed cost: per-row total landed and grand total are correct', async ({ p
   expect(Math.abs(grand - (t0 + t1))).toBeLessThan(0.02);
 });
 
+test('landed cost: per-row Total CBM column equals CBM/carton × cartons and totals to the section figure', async ({ page }) => {
+  await mockQuotesApi(page);
+  await page.goto(appPath);
+  await page.locator('button.tab', { hasText: 'Landed Cost Calculator' }).click();
+
+  await page.locator('#landed-product-body input[data-field="cbm-per-carton"]').first().fill('0.5');
+  await page.locator('#landed-product-body input[data-field="cartons"]').first().fill('3');
+
+  await page.locator('#add-landed-btn').click();
+  await page.locator('#landed-product-body input[data-field="cbm-per-carton"]').nth(1).fill('0.2469');
+  await page.locator('#landed-product-body input[data-field="cartons"]').nth(1).fill('7');
+
+  const rowCbm0 = parseFloat(await page.locator('#landed-product-body input[data-field="total-cbm"]').first().inputValue());
+  const rowCbm1 = parseFloat(await page.locator('#landed-product-body input[data-field="total-cbm"]').nth(1).inputValue());
+  expect(rowCbm0).toBeCloseTo(1.5, 4);
+  expect(rowCbm1).toBeCloseTo(0.2469 * 7, 4);
+
+  // 4 decimal places displayed.
+  expect(await page.locator('#landed-product-body input[data-field="total-cbm"]').nth(1).inputValue()).toMatch(/^\d+\.\d{4}$/);
+
+  // Totals-section Total CBM equals the sum of the per-row column.
+  const totalCbm = parseFloat((await page.locator('#landed-total-cbm').textContent()).trim());
+  expect(totalCbm).toBeCloseTo(rowCbm0 + rowCbm1, 4);
+});
+
+test('landed cost: workings panel renders live numbers matching displayed fields and hides on print', async ({ page }) => {
+  await mockQuotesApi(page);
+  await page.goto(appPath);
+  await page.locator('button.tab', { hasText: 'Landed Cost Calculator' }).click();
+
+  await page.locator('#landed-ship-mode').selectOption('20ft FCL');
+  await page.locator('#landed-origin-port').selectOption('Colombo');
+  await page.locator('#landed-exchange-rate').fill('0.65');
+  await page.locator('#landed-total-charge').fill('4500');
+  await page.locator('#landed-product-body input[data-field="usd-price"]').first().fill('4.50');
+  await page.locator('#landed-product-body input[data-field="qty-per-carton"]').first().fill('50');
+  await page.locator('#landed-product-body input[data-field="cbm-per-carton"]').first().fill('0.5');
+  await page.locator('#landed-product-body input[data-field="cartons"]').first().fill('2');
+
+  // Workings hidden until the feature is toggled on.
+  const workingsRow = page.locator('.landed-workings-row').first();
+  await expect(workingsRow).toBeHidden();
+
+  await page.locator('#toggle-workings-btn').click();
+  await expect(page.locator('#toggle-workings-btn')).toHaveText('Hide workings');
+
+  // Expand this row's panel.
+  await workingsRow.locator('.workings-toggle').click();
+  const panel = workingsRow.locator('.workings-panel');
+  await expect(panel).toBeVisible();
+
+  // Numbers in the panel match the row's displayed calculated fields exactly.
+  const landedCarton = await page.locator('#landed-product-body input[data-field="aud-landed-cost-per-carton"]').first().inputValue();
+  const landedBag = await page.locator('#landed-product-body input[data-field="aud-landed-cost-per-bag"]').first().inputValue();
+  const totalLanded = await page.locator('#landed-product-body input[data-field="aud-total-landed"]').first().inputValue();
+  const text = await panel.textContent();
+  expect(text).toContain(landedCarton);
+  expect(text).toContain(landedBag);
+  expect(text).toContain(totalLanded);
+  // Divisor line names the fixed container capacity for FCL.
+  expect(text).toContain('Fixed container capacity: 30 CBM (20ft FCL)');
+
+  // Re-editing updates the workings numbers (not hardcoded).
+  await page.locator('#landed-product-body input[data-field="usd-price"]').first().fill('9.00');
+  const newLandedBag = await page.locator('#landed-product-body input[data-field="aud-landed-cost-per-bag"]').first().inputValue();
+  expect(await panel.textContent()).toContain(newLandedBag);
+
+  // Hidden entirely on print.
+  await page.emulateMedia({ media: 'print' });
+  await expect(workingsRow).toBeHidden();
+  await expect(panel).toBeHidden();
+  await page.emulateMedia({ media: 'screen' });
+});
+
 test('updates a quote status from the saved quotes list', async ({ page }) => {
   const initialQuotes = [
     {

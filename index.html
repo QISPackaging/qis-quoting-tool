@@ -727,22 +727,20 @@ input[data-field="order-qty"]{-moz-appearance:textfield;appearance:textfield}
       <table class="line-table" id="landed-table">
         <thead>
           <tr>
-            <th style="width:78px">SKU</th>
-            <th style="min-width:130px">Description</th>
-            <th style="width:74px">USD price/bag</th>
-            <th style="width:68px">Qty/carton</th>
-            <th style="width:96px">Order qty</th>
+            <th style="width:90px">SKU</th>
+            <th style="min-width:150px">Description</th>
+            <th style="width:82px">USD price/bag</th>
+            <th style="width:78px">Qty/carton</th>
+            <th style="width:100px">Order qty</th>
             <th style="width:46px">CBM calc</th>
-            <th style="width:70px">CBM/carton</th>
-            <th style="width:66px">Cartons</th>
-            <th style="width:74px">Total CBM</th>
-            <th style="width:56px">Duty %</th>
-            <th style="width:84px">AUD price/carton</th>
-            <th style="width:92px">AUD freight &amp; customs/carton</th>
-            <th style="width:86px">AUD landed/carton</th>
-            <th style="width:86px">AUD landed/bag</th>
-            <th style="width:86px" title="Assumes this item carries the full container/shipment charges alone">Landed/bag (solo)</th>
-            <th style="width:92px">Total landed (AUD)</th>
+            <th style="width:80px">CBM/carton</th>
+            <th style="width:78px">Cartons</th>
+            <th style="width:84px">Total CBM</th>
+            <th style="width:64px">Duty %</th>
+            <th style="width:92px">AUD price/carton</th>
+            <th style="width:92px">AUD landed/bag</th>
+            <th style="width:96px" title="Assumes this item carries the full container/shipment charges alone">Landed/bag (solo)</th>
+            <th style="width:104px">Total landed (AUD)</th>
             <th style="width:28px" class="no-print"></th>
           </tr>
         </thead>
@@ -1154,8 +1152,6 @@ function addLandedProduct(){
     <td><input type="text" data-field="total-cbm" readonly value=""></td>
     <td><input type="number" data-field="duty-pct" min="0" step="0.1" placeholder="0" value=""></td>
     <td><input type="text" data-field="aud-price-per-carton" readonly value=""></td>
-    <td><input type="text" data-field="aud-freight-per-carton" readonly value=""></td>
-    <td><input type="text" data-field="aud-landed-cost-per-carton" readonly value=""></td>
     <td><input type="text" data-field="aud-landed-cost-per-bag" readonly value=""></td>
     <td><input type="text" data-field="aud-landed-cost-per-bag-solo" readonly value=""></td>
     <td><input type="text" data-field="aud-total-landed" readonly value=""></td>
@@ -1165,7 +1161,7 @@ function addLandedProduct(){
   // Workings reference row (sibling), hidden on print and until "Show workings" is on.
   const workingsRow=document.createElement('tr');
   workingsRow.className='landed-workings-row';
-  workingsRow.innerHTML='<td colspan="17" class="landed-workings-cell">'
+  workingsRow.innerHTML='<td colspan="15" class="landed-workings-cell">'
     +'<button type="button" class="workings-toggle">&#9656; Workings</button>'
     +'<div class="workings-panel"></div></td>';
   tbody.appendChild(workingsRow);
@@ -1327,15 +1323,11 @@ function updateLandedProductRows(){
     const soloLandedPerBag = qtyPerCarton>0 ? soloLandedPerCarton / qtyPerCarton : 0;
 
     const audPriceField=row.querySelector('[data-field="aud-price-per-carton"]');
-    const freightField=row.querySelector('[data-field="aud-freight-per-carton"]');
-    const landedCartonField=row.querySelector('[data-field="aud-landed-cost-per-carton"]');
     const landedBagField=row.querySelector('[data-field="aud-landed-cost-per-bag"]');
     const soloBagField=row.querySelector('[data-field="aud-landed-cost-per-bag-solo"]');
     const totalLandedField=row.querySelector('[data-field="aud-total-landed"]');
     const totalCbmField=row.querySelector('[data-field="total-cbm"]');
     if(audPriceField) audPriceField.value=fmtCurrency4(audPricePerCarton);
-    if(freightField) freightField.value=fmtCurrency4(freightPerCarton);
-    if(landedCartonField) landedCartonField.value=fmtCurrency4(landedCostPerCarton);
     if(landedBagField) landedBagField.value=fmtCurrency4(landedCostPerBag);
     if(soloBagField) soloBagField.value=fmtCurrency4(soloLandedPerBag);
     if(totalLandedField) totalLandedField.value=fmtCurrency(totalLanded);
@@ -1420,10 +1412,10 @@ function captureLandedState(){
     cbmW:row.querySelector('[data-field="cbm-w"]').value,
     cbmH:row.querySelector('[data-field="cbm-h"]').value,
     cbmUnit:row.querySelector('[data-field="cbm-unit"]').dataset.unit,
-    landedPerCarton:parseMoney(row.querySelector('[data-field="aud-landed-cost-per-carton"]').value.replace(/[^0-9.-]/g,''))
+    totalLandedRow:parseMoney(row.querySelector('[data-field="aud-total-landed"]').value.replace(/[^0-9.-]/g,''))
   }));
   const totalCartons=products.reduce((a,p)=>a+(parseFloat(p.cartons)||0),0);
-  const totalLandedCost=products.reduce((a,p)=>a+p.landedPerCarton*(parseFloat(p.cartons)||0),0);
+  const totalLandedCost=products.reduce((a,p)=>a+(p.totalLandedRow||0),0);
   return{
     mode:document.getElementById('landed-ship-mode').value,
     port:document.getElementById('landed-origin-port').value,

@@ -397,7 +397,7 @@ test('landed cost: per-unit costs show 4 decimals, order money stays 2 decimals'
   await page.locator('#landed-product-body input[data-field="cartons"]').first().fill('2');
 
   // Per-unit fields: exactly 4 decimal places.
-  for (const field of ['aud-price-per-carton', 'aud-freight-per-carton', 'aud-landed-cost-per-carton', 'aud-landed-cost-per-bag']) {
+  for (const field of ['aud-price-per-carton', 'aud-landed-cost-per-bag', 'aud-landed-cost-per-bag-solo']) {
     const val = await page.locator(`#landed-product-body input[data-field="${field}"]`).first().inputValue();
     expect(val).toMatch(/^\$[\d,]+\.\d{4}$/);
   }
@@ -477,12 +477,13 @@ test('landed cost: per-row total landed and grand total are correct', async ({ p
   await page.locator('#landed-product-body input[data-field="cbm-per-carton"]').nth(1).fill('0.3');
   await page.locator('#landed-product-body input[data-field="cartons"]').nth(1).fill('5');
 
-  // Total landed per row must equal landed/carton × cartons.
+  // Total landed per row must equal landed/bag × qty/carton × cartons.
   const rowTotal = async i => {
-    const perCarton = parseMoney(await page.locator('#landed-product-body input[data-field="aud-landed-cost-per-carton"]').nth(i).inputValue());
+    const perBag = parseMoney(await page.locator('#landed-product-body input[data-field="aud-landed-cost-per-bag"]').nth(i).inputValue());
+    const qtyPerCarton = parseFloat(await page.locator('#landed-product-body input[data-field="qty-per-carton"]').nth(i).inputValue()) || 0;
     const cartons = parseFloat(await page.locator('#landed-product-body input[data-field="cartons"]').nth(i).inputValue()) || 0;
     const shown = parseMoney(await page.locator('#landed-product-body input[data-field="aud-total-landed"]').nth(i).inputValue());
-    expect(Math.abs(shown - perCarton * cartons)).toBeLessThan(0.02);
+    expect(Math.abs(shown - perBag * qtyPerCarton * cartons)).toBeLessThan(0.02);
     return shown;
   };
   const t0 = await rowTotal(0);
@@ -518,6 +519,31 @@ test('landed cost: per-row Total CBM column equals CBM/carton × cartons and tot
   expect(totalCbm).toBeCloseTo(rowCbm0 + rowCbm1, 4);
 });
 
+test('landed cost: Cartons and Total landed show full values without truncation', async ({ page }) => {
+  await mockQuotesApi(page);
+  await page.goto(appPath);
+  await page.locator('button.tab', { hasText: 'Landed Cost Calculator' }).click();
+
+  await page.locator('#landed-ship-mode').selectOption('20ft FCL');
+  await page.locator('#landed-origin-port').selectOption('Colombo');
+  await fillLandedRow(page, 0, { 'usd-price': '9.99', 'qty-per-carton': '100', 'cbm-per-carton': '0.5', 'cartons': '1250' });
+  await page.locator('#landed-total-charge').fill('120000');
+
+  const noClip = async loc => {
+    const el = page.locator(loc).first();
+    const s = await el.evaluate(e => e.scrollWidth);
+    const c = await el.evaluate(e => e.clientWidth);
+    expect(s).toBeLessThanOrEqual(c + 1);
+  };
+  // Cartons shows 1250 in full.
+  expect(await page.locator('#landed-product-body input[data-field="cartons"]').first().inputValue()).toBe('1250');
+  await noClip('#landed-product-body input[data-field="cartons"]');
+  // Total landed shows a large value in full.
+  const total = await page.locator('#landed-product-body input[data-field="aud-total-landed"]').first().inputValue();
+  expect(total).toMatch(/^\$[\d,]+\.\d{2}$/);
+  await noClip('#landed-product-body input[data-field="aud-total-landed"]');
+});
+
 test('landed cost: workings panel renders live numbers matching displayed fields and hides on print', async ({ page }) => {
   await mockQuotesApi(page);
   await page.goto(appPath);
@@ -545,13 +571,14 @@ test('landed cost: workings panel renders live numbers matching displayed fields
   await expect(panel).toBeVisible();
 
   // Numbers in the panel match the row's displayed calculated fields exactly.
-  const landedCarton = await page.locator('#landed-product-body input[data-field="aud-landed-cost-per-carton"]').first().inputValue();
   const landedBag = await page.locator('#landed-product-body input[data-field="aud-landed-cost-per-bag"]').first().inputValue();
   const totalLanded = await page.locator('#landed-product-body input[data-field="aud-total-landed"]').first().inputValue();
   const text = await panel.textContent();
-  expect(text).toContain(landedCarton);
   expect(text).toContain(landedBag);
   expect(text).toContain(totalLanded);
+  // The removed columns' figures still live in the workings as calculation lines.
+  expect(text).toContain('Freight/carton:');
+  expect(text).toContain('Landed/carton:');
   // Divisor line names the fixed container capacity for FCL.
   expect(text).toContain('Fixed container capacity: 30 CBM (20ft FCL)');
 
@@ -667,6 +694,9 @@ test('landed cost: dedicated print shows the full-width table; workings print on
   // Key columns are visible on print (solo + total landed).
   await expect(page.locator('#landed-table th', { hasText: 'Landed/bag (solo)' })).toBeVisible();
   await expect(page.locator('#landed-table th', { hasText: 'Total landed (AUD)' })).toBeVisible();
+  // The two intermediate-workings columns are gone from the table.
+  await expect(page.locator('#landed-table th', { hasText: 'AUD freight & customs/carton' })).toHaveCount(0);
+  await expect(page.locator('#landed-table th', { hasText: 'AUD landed/carton' })).toHaveCount(0);
 
   // Workings toggle OFF → no workings rows print.
   await expect(page.locator('.landed-workings-row').first()).toBeHidden();

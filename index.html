@@ -131,6 +131,8 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
 .quotes-table th:nth-child(1),.quotes-table td:nth-child(1){width:135px;white-space:nowrap;text-overflow:clip;overflow:visible}
 .source-badge{display:inline-block;margin-left:6px;padding:1px 5px;font-size:9px;font-weight:600;line-height:1.4;letter-spacing:0.03em;color:#555;background:#ececec;border:1px solid #d8d8d8;border-radius:4px;vertical-align:middle}
 .missing-cost-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#E6A817;margin-left:5px;vertical-align:middle}
+/* Cartons field highlighted when order qty was rounded up to whole cartons. */
+.line-table input.rounded-up{background:#FDF6E3;border-color:#E6C34A}
 .status-pill.pending{background:#E6F1FB;color:#0C447C}
 .status-pill.won{background:#EAF3DE;color:#27500A}
 .status-pill.lost{background:#FCEBEB;color:#791F1F}
@@ -679,18 +681,20 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
       <table class="line-table">
         <thead>
           <tr>
-            <th style="width:80px">SKU</th>
-            <th style="min-width:140px">Description</th>
-            <th style="width:80px">USD price/bag</th>
-            <th style="width:75px">Qty/carton</th>
-            <th style="width:220px">CBM calc (L×W×H)</th>
-            <th style="width:75px">CBM/carton</th>
-            <th style="width:75px">Cartons</th>
-            <th style="width:65px">Duty %</th>
-            <th style="width:90px">AUD price/carton</th>
-            <th style="width:100px">AUD freight &amp; customs/carton</th>
-            <th style="width:95px">AUD landed/carton</th>
-            <th style="width:95px">AUD landed/bag</th>
+            <th style="width:78px">SKU</th>
+            <th style="min-width:130px">Description</th>
+            <th style="width:74px">USD price/bag</th>
+            <th style="width:70px">Qty/carton</th>
+            <th style="width:74px">Order qty</th>
+            <th style="width:190px">CBM calc (L×W×H)</th>
+            <th style="width:70px">CBM/carton</th>
+            <th style="width:70px">Cartons</th>
+            <th style="width:60px">Duty %</th>
+            <th style="width:86px">AUD price/carton</th>
+            <th style="width:96px">AUD freight &amp; customs/carton</th>
+            <th style="width:90px">AUD landed/carton</th>
+            <th style="width:90px">AUD landed/bag</th>
+            <th style="width:96px">Total landed (AUD)</th>
             <th style="width:28px" class="no-print"></th>
           </tr>
         </thead>
@@ -702,6 +706,7 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
     <div class="quote-totals" style="margin-top:1rem">
       <div class="quote-totals-row"><span>Total CBM</span><span id="landed-total-cbm">0.00</span></div>
       <div class="quote-totals-row"><span>Total cartons</span><span id="landed-total-cartons">0</span></div>
+      <div class="quote-totals-row"><span>Total landed (AUD)</span><span id="landed-total-landed">$0.00</span></div>
     </div>
     <div class="action-row no-print" style="margin-top:1rem">
       <button class="new-btn" onclick="printLandedCost()">Print / Export</button>
@@ -1080,6 +1085,7 @@ function addLandedProduct(){
     <td><input type="text" data-field="desc" value=""></td>
     <td><input type="number" data-field="usd-price" min="0" step="0.01" value=""></td>
     <td><input type="number" data-field="qty-per-carton" min="0" step="1" value=""></td>
+    <td><input type="number" data-field="order-qty" min="0" step="1" value=""></td>
     <td><div class="cbm-calc-cell">
       <div class="cbm-lwh">
         <div class="cbm-field"><label>L</label><input type="number" data-field="cbm-l" min="0" step="0.1" placeholder="0"></div>
@@ -1097,6 +1103,7 @@ function addLandedProduct(){
     <td><input type="text" data-field="aud-freight-per-carton" readonly value=""></td>
     <td><input type="text" data-field="aud-landed-cost-per-carton" readonly value=""></td>
     <td><input type="text" data-field="aud-landed-cost-per-bag" readonly value=""></td>
+    <td><input type="text" data-field="aud-total-landed" readonly value=""></td>
     <td class="no-print"><button class="remove-btn" aria-label="Remove product">×</button></td>
   `;
   tbody.appendChild(row);
@@ -1104,7 +1111,12 @@ function addLandedProduct(){
   if(removeBtn){removeBtn.addEventListener('click',()=>{row.remove();updateLandedCalculator();});}
   row.querySelectorAll('input').forEach(input=>{
     input.addEventListener('input',()=>{
-      if(['cbm-l','cbm-w','cbm-h'].includes(input.dataset.field)) computeRowCbm(row);
+      const f=input.dataset.field;
+      if(['cbm-l','cbm-w','cbm-h'].includes(f)) computeRowCbm(row);
+      // Two-way Order qty <-> Cartons; last-edited field wins.
+      if(f==='order-qty') syncLandedRowQuantities(row,'order');
+      else if(f==='cartons') syncLandedRowQuantities(row,'cartons');
+      else if(f==='qty-per-carton') syncLandedRowQuantities(row,'qty-per-carton');
       updateLandedCalculator();
     });
   });
@@ -1116,6 +1128,30 @@ function addLandedProduct(){
     updateLandedCalculator();
   });
   updateLandedCalculator();
+}
+
+// Programmatically fill the counterpart field (no input event dispatched, so no
+// loop). Order qty -> Cartons rounds up to whole cartons; Cartons -> Order qty
+// is an exact multiply. The rounded-up highlight is applied in updateLandedProductRows.
+function syncLandedRowQuantities(row,source){
+  const qpcInput=row.querySelector('[data-field="qty-per-carton"]');
+  const orderInput=row.querySelector('[data-field="order-qty"]');
+  const cartonsInput=row.querySelector('[data-field="cartons"]');
+  const qpc=parseFloat(qpcInput.value)||0;
+  if(source==='order'){
+    const orderQty=parseFloat(orderInput.value)||0;
+    if(qpc>0&&orderInput.value!=='') cartonsInput.value=Math.ceil(orderQty/qpc);
+  } else if(source==='cartons'){
+    const cartons=parseFloat(cartonsInput.value)||0;
+    if(qpc>0&&cartonsInput.value!=='') orderInput.value=Math.round(cartons*qpc);
+  } else if(source==='qty-per-carton'){
+    // Qty/carton changed: keep the pair consistent using whichever the rep set.
+    if(orderInput.value!==''&&qpc>0){
+      cartonsInput.value=Math.ceil((parseFloat(orderInput.value)||0)/qpc);
+    } else if(cartonsInput.value!==''&&qpc>0){
+      orderInput.value=Math.round((parseFloat(cartonsInput.value)||0)*qpc);
+    }
+  }
 }
 
 function updateLandedProductRows(){
@@ -1136,6 +1172,7 @@ function updateLandedProductRows(){
   // capacity rather than the actual product CBM loaded.
   const cbmDivisor = FCL_CONTAINER_CBM[mode] || totalCbm;
 
+  let grandTotalLanded=0;
   rows.forEach(row=>{
     const usdPrice=parseMoney(row.querySelector('[data-field="usd-price"]').value);
     const qtyPerCarton=parseFloat(row.querySelector('[data-field="qty-per-carton"]').value)||0;
@@ -1149,18 +1186,35 @@ function updateLandedProductRows(){
     const dutyPerCarton = (audPricePerCarton+freightPerCarton) * (dutyPct/100);
     const landedCostPerCarton = audPricePerCarton + freightPerCarton + dutyPerCarton;
     const landedCostPerBag = qtyPerCarton>0 ? landedCostPerCarton / qtyPerCarton : 0;
+    const totalLanded = landedCostPerCarton * cartons;
+    grandTotalLanded += totalLanded;
 
     const audPriceField=row.querySelector('[data-field="aud-price-per-carton"]');
     const freightField=row.querySelector('[data-field="aud-freight-per-carton"]');
     const landedCartonField=row.querySelector('[data-field="aud-landed-cost-per-carton"]');
     const landedBagField=row.querySelector('[data-field="aud-landed-cost-per-bag"]');
+    const totalLandedField=row.querySelector('[data-field="aud-total-landed"]');
     if(audPriceField) audPriceField.value=fmtCurrency(audPricePerCarton);
     if(freightField) freightField.value=fmtCurrency(freightPerCarton);
     if(landedCartonField) landedCartonField.value=fmtCurrency(landedCostPerCarton);
     if(landedBagField) landedBagField.value=fmtCurrency(landedCostPerBag);
+    if(totalLandedField) totalLandedField.value=fmtCurrency(totalLanded);
+
+    // Rounded-up indicator: order qty isn't an exact multiple of qty/carton.
+    const orderInput=row.querySelector('[data-field="order-qty"]');
+    const cartonsInput=row.querySelector('[data-field="cartons"]');
+    const orderQty=parseFloat(orderInput.value)||0;
+    const rounded = orderInput.value!=='' && qtyPerCarton>0 && orderQty>0 && (orderQty % qtyPerCarton !== 0);
+    cartonsInput.classList.toggle('rounded-up',rounded);
+    if(rounded){
+      cartonsInput.title='Rounded up to whole cartons — actual pieces shipped: '+(cartons*qtyPerCarton);
+    } else {
+      cartonsInput.removeAttribute('title');
+    }
   });
   document.getElementById('landed-total-cbm').textContent=totalCbm.toFixed(2);
   document.getElementById('landed-total-cartons').textContent=String(totalCartons);
+  document.getElementById('landed-total-landed').textContent=fmtCurrency(grandTotalLanded);
   updateCapacityBanner(document.getElementById('landed-ship-mode').value,totalCbm);
 }
 
@@ -1190,6 +1244,7 @@ function captureLandedState(){
     desc:row.querySelector('[data-field="desc"]').value,
     usdPrice:row.querySelector('[data-field="usd-price"]').value,
     qtyPerCarton:row.querySelector('[data-field="qty-per-carton"]').value,
+    orderQty:row.querySelector('[data-field="order-qty"]').value,
     cbmPerCarton:row.querySelector('[data-field="cbm-per-carton"]').value,
     cartons:row.querySelector('[data-field="cartons"]').value,
     dutyPct:row.querySelector('[data-field="duty-pct"]').value,
@@ -1273,6 +1328,7 @@ function loadShipment(id){
     row.querySelector('[data-field="desc"]').value=p.desc||'';
     row.querySelector('[data-field="usd-price"]').value=p.usdPrice||'';
     row.querySelector('[data-field="qty-per-carton"]').value=p.qtyPerCarton||'';
+    row.querySelector('[data-field="order-qty"]').value=p.orderQty||'';
     row.querySelector('[data-field="cbm-l"]').value=p.cbmL||'';
     row.querySelector('[data-field="cbm-w"]').value=p.cbmW||'';
     row.querySelector('[data-field="cbm-h"]').value=p.cbmH||'';

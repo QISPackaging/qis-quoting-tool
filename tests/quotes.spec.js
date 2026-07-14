@@ -382,6 +382,84 @@ test('sends landed cost lines into the calculator as cost prices', async ({ page
   await expect(page.locator('#line-items-body input[data-field="cost"]').first()).not.toHaveValue('');
 });
 
+test('landed cost: order qty computes cartons (rounding up) and marks the rounded row', async ({ page }) => {
+  await mockQuotesApi(page);
+  await page.goto(appPath);
+  await page.locator('button.tab', { hasText: 'Landed Cost Calculator' }).click();
+
+  const qpc = page.locator('#landed-product-body input[data-field="qty-per-carton"]').first();
+  const orderQty = page.locator('#landed-product-body input[data-field="order-qty"]').first();
+  const cartons = page.locator('#landed-product-body input[data-field="cartons"]').first();
+
+  await qpc.fill('50');
+  await orderQty.fill('1000');
+  // Exact multiple: 1000 / 50 = 20 cartons, no rounding highlight.
+  await expect(cartons).toHaveValue('20');
+  await expect(cartons).not.toHaveClass(/rounded-up/);
+
+  // Non-multiple: 1020 / 50 = 20.4 -> rounds up to 21, highlight + tooltip appear.
+  await orderQty.fill('1020');
+  await expect(cartons).toHaveValue('21');
+  await expect(cartons).toHaveClass(/rounded-up/);
+  await expect(cartons).toHaveAttribute('title', /actual pieces shipped: 1050/);
+});
+
+test('landed cost: typing cartons reverse-fills order qty', async ({ page }) => {
+  await mockQuotesApi(page);
+  await page.goto(appPath);
+  await page.locator('button.tab', { hasText: 'Landed Cost Calculator' }).click();
+
+  const qpc = page.locator('#landed-product-body input[data-field="qty-per-carton"]').first();
+  const orderQty = page.locator('#landed-product-body input[data-field="order-qty"]').first();
+  const cartons = page.locator('#landed-product-body input[data-field="cartons"]').first();
+
+  await qpc.fill('40');
+  await cartons.fill('3');
+  await expect(orderQty).toHaveValue('120');
+  await expect(cartons).not.toHaveClass(/rounded-up/);
+});
+
+test('landed cost: per-row total landed and grand total are correct', async ({ page }) => {
+  await mockQuotesApi(page);
+  await page.goto(appPath);
+  await page.locator('button.tab', { hasText: 'Landed Cost Calculator' }).click();
+
+  await page.locator('#landed-ship-mode').selectOption('20ft FCL');
+  await page.locator('#landed-origin-port').selectOption('Colombo');
+  await page.locator('#landed-exchange-rate').fill('0.65');
+
+  const parseMoney = s => parseFloat(String(s).replace(/[^0-9.-]/g, '')) || 0;
+
+  // Row 1
+  await page.locator('#landed-product-body input[data-field="sku"]').first().fill('SKU-1');
+  await page.locator('#landed-product-body input[data-field="usd-price"]').first().fill('4.50');
+  await page.locator('#landed-product-body input[data-field="qty-per-carton"]').first().fill('50');
+  await page.locator('#landed-product-body input[data-field="cbm-per-carton"]').first().fill('0.5');
+  await page.locator('#landed-product-body input[data-field="cartons"]').first().fill('2');
+
+  // Add a second product row.
+  await page.locator('#add-landed-btn').click();
+  await page.locator('#landed-product-body input[data-field="usd-price"]').nth(1).fill('3.00');
+  await page.locator('#landed-product-body input[data-field="qty-per-carton"]').nth(1).fill('20');
+  await page.locator('#landed-product-body input[data-field="cbm-per-carton"]').nth(1).fill('0.3');
+  await page.locator('#landed-product-body input[data-field="cartons"]').nth(1).fill('5');
+
+  // Total landed per row must equal landed/carton × cartons.
+  const rowTotal = async i => {
+    const perCarton = parseMoney(await page.locator('#landed-product-body input[data-field="aud-landed-cost-per-carton"]').nth(i).inputValue());
+    const cartons = parseFloat(await page.locator('#landed-product-body input[data-field="cartons"]').nth(i).inputValue()) || 0;
+    const shown = parseMoney(await page.locator('#landed-product-body input[data-field="aud-total-landed"]').nth(i).inputValue());
+    expect(Math.abs(shown - perCarton * cartons)).toBeLessThan(0.02);
+    return shown;
+  };
+  const t0 = await rowTotal(0);
+  const t1 = await rowTotal(1);
+
+  // Grand total equals the sum of row totals.
+  const grand = parseMoney(await page.locator('#landed-total-landed').textContent());
+  expect(Math.abs(grand - (t0 + t1))).toBeLessThan(0.02);
+});
+
 test('updates a quote status from the saved quotes list', async ({ page }) => {
   const initialQuotes = [
     {

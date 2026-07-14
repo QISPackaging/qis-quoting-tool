@@ -567,6 +567,135 @@ test('landed cost: workings panel renders live numbers matching displayed fields
   await page.emulateMedia({ media: 'screen' });
 });
 
+const pm = s => parseFloat(String(s).replace(/[^0-9.-]/g, '')) || 0;
+
+async function fillLandedRow(page, i, vals) {
+  for (const [field, value] of Object.entries(vals)) {
+    await page.locator(`#landed-product-body input[data-field="${field}"]`).nth(i).fill(String(value));
+  }
+}
+
+test('landed cost: order qty field shows 7 digits without cutting off', async ({ page }) => {
+  await mockQuotesApi(page);
+  await page.goto(appPath);
+  await page.locator('button.tab', { hasText: 'Landed Cost Calculator' }).click();
+
+  const orderQty = page.locator('#landed-product-body input[data-field="order-qty"]').first();
+  await orderQty.fill('1000000');
+  expect(await orderQty.inputValue()).toBe('1000000');
+  // The full value fits inside the input (no clipping).
+  const scrollW = await orderQty.evaluate(el => el.scrollWidth);
+  const clientW = await orderQty.evaluate(el => el.clientWidth);
+  expect(scrollW).toBeLessThanOrEqual(clientW + 1);
+});
+
+test('landed cost: FCL solo landed/bag equals full freight ÷ item cartons', async ({ page }) => {
+  await mockQuotesApi(page);
+  await page.goto(appPath);
+  await page.locator('button.tab', { hasText: 'Landed Cost Calculator' }).click();
+
+  await page.locator('#landed-ship-mode').selectOption('20ft FCL');
+  await page.locator('#landed-origin-port').selectOption('Colombo');
+  await page.locator('#landed-exchange-rate').fill('0.65');
+  await fillLandedRow(page, 0, { 'usd-price': '4.50', 'qty-per-carton': '50', 'cbm-per-carton': '0.5', 'cartons': '4' });
+  // Manual override of total freight — used as the solo total too.
+  await page.locator('#landed-total-charge').fill('8000');
+
+  const audPrice = pm(await page.locator('#landed-product-body input[data-field="aud-price-per-carton"]').first().inputValue());
+  const solo = pm(await page.locator('#landed-product-body input[data-field="aud-landed-cost-per-bag-solo"]').first().inputValue());
+  // Solo freight/carton = 8000 / 4 = 2000; no duty; ÷ 50 bags.
+  const expected = (audPrice + 8000 / 4) / 50;
+  expect(Math.abs(solo - expected)).toBeLessThan(0.001);
+});
+
+test('landed cost: LCL solo exceeds bundled per-bag for a small item dominated by fixed charges', async ({ page }) => {
+  await mockQuotesApi(page);
+  await page.goto(appPath);
+  await page.locator('button.tab', { hasText: 'Landed Cost Calculator' }).click();
+
+  await page.locator('#landed-ship-mode').selectOption('LCL');
+  await page.locator('#landed-origin-port').selectOption('Colombo');
+  await page.locator('#landed-exchange-rate').fill('0.65');
+
+  // Large item soaks up most CBM.
+  await fillLandedRow(page, 0, { 'usd-price': '5', 'qty-per-carton': '20', 'cbm-per-carton': '1', 'cartons': '20' });
+  // Small item: tiny CBM, few cartons — bundled freight share is small.
+  await page.locator('#add-landed-btn').click();
+  await fillLandedRow(page, 1, { 'usd-price': '5', 'qty-per-carton': '20', 'cbm-per-carton': '0.01', 'cartons': '1' });
+
+  const bundledSmall = pm(await page.locator('#landed-product-body input[data-field="aud-landed-cost-per-bag"]').nth(1).inputValue());
+  const soloSmall = pm(await page.locator('#landed-product-body input[data-field="aud-landed-cost-per-bag-solo"]').nth(1).inputValue());
+  expect(soloSmall).toBeGreaterThan(bundledSmall);
+});
+
+test('landed cost: single-product LCL shipment shows solo consistent with the bundled figure', async ({ page }) => {
+  await mockQuotesApi(page);
+  await page.goto(appPath);
+  await page.locator('button.tab', { hasText: 'Landed Cost Calculator' }).click();
+
+  await page.locator('#landed-ship-mode').selectOption('LCL');
+  await page.locator('#landed-origin-port').selectOption('Colombo');
+  await page.locator('#landed-exchange-rate').fill('0.65');
+  await fillLandedRow(page, 0, { 'usd-price': '5', 'qty-per-carton': '10', 'cbm-per-carton': '0.5', 'cartons': '4', 'duty-pct': '10' });
+
+  const bundled = pm(await page.locator('#landed-product-body input[data-field="aud-landed-cost-per-bag"]').first().inputValue());
+  const solo = pm(await page.locator('#landed-product-body input[data-field="aud-landed-cost-per-bag-solo"]').first().inputValue());
+  // Only item in the shipment: solo must equal bundled (duty included in both).
+  expect(Math.abs(solo - bundled)).toBeLessThan(0.001);
+});
+
+test('landed cost: dedicated print shows the full-width table; workings print only when toggle is on', async ({ page }) => {
+  await mockQuotesApi(page);
+  await page.goto(appPath);
+  await page.evaluate(() => { window.print = () => {}; });
+  await page.locator('button.tab', { hasText: 'Landed Cost Calculator' }).click();
+
+  await page.locator('#landed-ship-mode').selectOption('20ft FCL');
+  await page.locator('#landed-origin-port').selectOption('Colombo');
+  await fillLandedRow(page, 0, { 'sku': 'SKU-1', 'usd-price': '4.50', 'qty-per-carton': '50', 'cbm-per-carton': '0.5', 'cartons': '2' });
+
+  // Trigger the real landed print path (window.print stubbed) — adds print-landed.
+  await page.locator('button:has-text("Print / Export")').click();
+  await page.emulateMedia({ media: 'print' });
+
+  // Table fits its wrapper width (no overflow / horizontal scrollbar).
+  const table = page.locator('#landed-table');
+  const tableBox = await table.boundingBox();
+  const wrapBox = await table.locator('xpath=ancestor::div[contains(@class,"line-wrap")]').boundingBox();
+  expect(tableBox.width).toBeLessThanOrEqual(wrapBox.width + 1);
+
+  // Key columns are visible on print (solo + total landed).
+  await expect(page.locator('#landed-table th', { hasText: 'Landed/bag (solo)' })).toBeVisible();
+  await expect(page.locator('#landed-table th', { hasText: 'Total landed (AUD)' })).toBeVisible();
+
+  // Workings toggle OFF → no workings rows print.
+  await expect(page.locator('.landed-workings-row').first()).toBeHidden();
+
+  // Turn Show workings ON, then print — panels print even though not expanded on screen.
+  await page.emulateMedia({ media: 'screen' });
+  await page.locator('#toggle-workings-btn').click();
+  await page.emulateMedia({ media: 'print' });
+  await expect(page.locator('.landed-workings-row').first()).toBeVisible();
+  await expect(page.locator('.landed-workings-row .workings-panel').first()).toBeVisible();
+
+  await page.emulateMedia({ media: 'screen' });
+});
+
+test('Calculator tab print is unaffected by the landed print styles', async ({ page }) => {
+  await mockQuotesApi(page);
+  await page.goto(appPath);
+
+  await page.locator('#line-items-body input[data-field="cost"]').nth(0).fill('10');
+  await page.locator('#line-items-body input[data-field="sell"]').nth(0).fill('20');
+
+  // No print-landed class present → portrait calculator print behaviour intact.
+  await page.emulateMedia({ media: 'print' });
+  expect(await page.evaluate(() => document.body.classList.contains('print-landed'))).toBe(false);
+  await expect(page.locator('#print-header')).toBeVisible();
+  await expect(page.locator('#line-items-body input[data-field="sell"]').first()).toBeVisible();
+  await page.emulateMedia({ media: 'screen' });
+});
+
 test('updates a quote status from the saved quotes list', async ({ page }) => {
   const initialQuotes = [
     {

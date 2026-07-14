@@ -113,6 +113,10 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
 .toast.error{display:block;background:#FCEBEB;color:#791F1F;border:1px solid #F7C1C1}
 .line-wrap{overflow-x:auto;margin-bottom:10px}
 .line-table{width:auto;border-collapse:collapse;font-size:13px;min-width:750px;table-layout:fixed}
+/* Landed table uses auto layout so each column honours its declared width (and the
+   wide Order qty never gets compressed). It has no drag-resize handles, unlike the
+   calculator table which relies on fixed layout. */
+#landed-table{table-layout:auto;min-width:0}
 .line-table th{text-align:left;padding:6px 8px;font-size:11px;font-weight:500;color:#888;border-bottom:1px solid #e8e8e8;white-space:nowrap;position:relative}
 .col-resize-handle{position:absolute;top:0;right:-4px;width:9px;height:100%;cursor:col-resize;touch-action:none;z-index:5;display:flex;align-items:center;justify-content:center}
 .col-resize-handle::after{content:'';display:block;width:2px;height:60%;background:#ccc;border-radius:1px;transition:background 0.1s}
@@ -147,6 +151,11 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
 .missing-cost-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#E6A817;margin-left:5px;vertical-align:middle}
 /* Cartons field highlighted when order qty was rounded up to whole cartons. */
 .line-table input.rounded-up{background:#FDF6E3;border-color:#E6C34A}
+/* Order qty holds up to 7 digits (1,000,000) — drop the number spinner so the value never clips. */
+input[data-field="order-qty"]::-webkit-outer-spin-button,
+input[data-field="order-qty"]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+input[data-field="order-qty"]{-moz-appearance:textfield;appearance:textfield}
+#landed-table input[data-field="order-qty"]{min-width:78px}
 .status-pill.pending{background:#E6F1FB;color:#0C447C}
 .status-pill.won{background:#EAF3DE;color:#27500A}
 .status-pill.lost{background:#FCEBEB;color:#791F1F}
@@ -212,14 +221,14 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
   .line-wrap{overflow-x:visible!important}
   .line-table{font-size:9pt;width:100%!important;min-width:0!important;table-layout:fixed}
   .line-table th{font-size:8.5pt;padding:2px 4px;overflow:hidden;white-space:normal}
-  .line-table th#col-th-sku{width:13%!important}
-  .line-table th#col-th-desc{width:27%!important}
-  .line-table th:nth-child(4){width:8%!important}
-  .line-table th:nth-child(5){width:11%!important}
-  .line-table th:nth-child(6){width:11%!important}
-  .line-table th:nth-child(7){width:8%!important}
-  .line-table th:nth-child(8){width:11%!important}
-  .line-table th:nth-child(9){width:11%!important}
+  #line-items-section .line-table th#col-th-sku{width:13%!important}
+  #line-items-section .line-table th#col-th-desc{width:27%!important}
+  #line-items-section .line-table th:nth-child(4){width:8%!important}
+  #line-items-section .line-table th:nth-child(5){width:11%!important}
+  #line-items-section .line-table th:nth-child(6){width:11%!important}
+  #line-items-section .line-table th:nth-child(7){width:8%!important}
+  #line-items-section .line-table th:nth-child(8){width:11%!important}
+  #line-items-section .line-table th:nth-child(9){width:11%!important}
   .line-table td{padding:2px 4px;overflow:hidden}
   .line-table tr{break-inside:avoid}
   .line-table input{font-size:9pt;border:none;background:transparent;height:auto;padding:0;width:100%}
@@ -238,6 +247,29 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
   body.print-internal div.gp-field{display:block!important}
   body.print-internal .gp-internal-summary{display:block!important;font-size:10pt;border:2px solid #791F1F;margin-top:0.4rem}
   body.print-internal .internal-print-banner{display:block!important;font-size:9.5pt;font-weight:700;color:#791F1F;background:#FAEEDA;border:2px solid #791F1F;border-radius:8px;padding:4px 10px;margin-bottom:0.4rem;text-align:center}
+
+  /* ── Landed Cost tab: dedicated landscape print (only when printing that tab) ── */
+  @page landed{size:A4 landscape;margin:1cm}
+  body.print-landed .container{page:landed;max-width:100%;width:100%}
+  /* Landed workings rows are hidden on print by default; shown (all, expanded) only
+     when the Show workings toggle is on — the sign-off/audit print. */
+  .landed-workings-row{display:none!important}
+  body.print-landed #landed-table.show-workings .landed-workings-row{display:table-row!important}
+  body.print-landed #landed-table.show-workings .landed-workings-row .workings-panel{display:block!important}
+  body.print-landed #landed-table .workings-toggle{display:none!important}
+  body.print-landed #landed-table{width:100%!important;min-width:0!important;table-layout:fixed;font-size:7.5pt}
+  body.print-landed #landed-table th{font-size:7pt;padding:2px 3px;white-space:normal;overflow:hidden}
+  body.print-landed #landed-table td{padding:2px 3px;overflow:hidden}
+  body.print-landed #landed-table input{font-size:7.5pt}
+  /* The CBM-calc icon column is screen-only; drop it on print to reclaim width. */
+  body.print-landed #landed-table th:nth-child(6),body.print-landed #landed-table td:nth-child(6){display:none!important}
+  body.print-landed #landed-table .workings-panel{font-size:7pt;padding-left:10px}
+  body.print-landed .cbm-toggle,body.print-landed .cbm-lwh-pop{display:none!important}
+  /* Freight breakdown prints only when expanded on screen. */
+  body.print-landed #freight-breakdown-body{display:none!important}
+  body.print-landed #freight-breakdown-body.show{display:block!important}
+  .landed-product-row.empty-line-print{display:none!important}
+  body.print-landed #landed-table .landed-workings-row.empty-line-print{display:none!important}
 }
 .print-only{display:none}
 .internal-print-banner{display:none}
@@ -699,7 +731,7 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
             <th style="min-width:130px">Description</th>
             <th style="width:74px">USD price/bag</th>
             <th style="width:68px">Qty/carton</th>
-            <th style="width:70px">Order qty</th>
+            <th style="width:96px">Order qty</th>
             <th style="width:46px">CBM calc</th>
             <th style="width:70px">CBM/carton</th>
             <th style="width:66px">Cartons</th>
@@ -709,6 +741,7 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
             <th style="width:92px">AUD freight &amp; customs/carton</th>
             <th style="width:86px">AUD landed/carton</th>
             <th style="width:86px">AUD landed/bag</th>
+            <th style="width:86px" title="Assumes this item carries the full container/shipment charges alone">Landed/bag (solo)</th>
             <th style="width:92px">Total landed (AUD)</th>
             <th style="width:28px" class="no-print"></th>
           </tr>
@@ -1124,14 +1157,15 @@ function addLandedProduct(){
     <td><input type="text" data-field="aud-freight-per-carton" readonly value=""></td>
     <td><input type="text" data-field="aud-landed-cost-per-carton" readonly value=""></td>
     <td><input type="text" data-field="aud-landed-cost-per-bag" readonly value=""></td>
+    <td><input type="text" data-field="aud-landed-cost-per-bag-solo" readonly value=""></td>
     <td><input type="text" data-field="aud-total-landed" readonly value=""></td>
     <td class="no-print"><button class="remove-btn" aria-label="Remove product">×</button></td>
   `;
   tbody.appendChild(row);
   // Workings reference row (sibling), hidden on print and until "Show workings" is on.
   const workingsRow=document.createElement('tr');
-  workingsRow.className='landed-workings-row no-print';
-  workingsRow.innerHTML='<td colspan="16" class="landed-workings-cell">'
+  workingsRow.className='landed-workings-row';
+  workingsRow.innerHTML='<td colspan="17" class="landed-workings-cell">'
     +'<button type="button" class="workings-toggle">&#9656; Workings</button>'
     +'<div class="workings-panel"></div></td>';
   tbody.appendChild(workingsRow);
@@ -1196,6 +1230,26 @@ function toggleLandedWorkings(){
   if(on) updateLandedCalculator();
 }
 
+// Solo freight total: what freight this item alone would bear if it were the whole
+// shipment. FCL — the item carries the full container cost. LCL — re-run the full
+// LCL charge calc at just this item's CBM (fixed destination charges borne in full,
+// per-CBM/minimum charges at max(1, item CBM)). A manual Total-freight override is
+// used as the solo total directly, per spec.
+function computeSoloFreightTotal(mode,port,exchangeRate,itemCbm,totalCharge){
+  if(_totalManualOverride) return totalCharge;
+  if(mode==='LCL'){
+    const items=getFreightBreakdownItems('LCL',port,exchangeRate,itemCbm);
+    const breakdownSum=items.reduce((a,i)=>a+i.value,0);
+    const ttDeposit=parseMoney(document.getElementById('landed-tt-deposit-fee').value);
+    const ttBalance=parseMoney(document.getElementById('landed-tt-balance-fee').value);
+    const heavyLift=document.getElementById('landed-heavy-lift').checked?370:0;
+    const demurrage=document.getElementById('landed-demurrage').checked?125:0;
+    const sideloader=parseMoney(document.getElementById('landed-sideloader-fee').value);
+    return breakdownSum+ttDeposit+ttBalance+heavyLift+demurrage+sideloader;
+  }
+  return totalCharge; // FCL: full container borne alone
+}
+
 // Build the per-row calculation chain as plain text. Every result is formatted
 // with the SAME formatter the visible field uses, so the workings can never
 // drift from the displayed values. Pure function of the passed-in live values.
@@ -1215,6 +1269,16 @@ function buildLandedWorkings(v){
   lines.push('Landed/carton: '+fmtCurrency4(v.audPricePerCarton)+' + '+fmtCurrency4(v.freightPerCarton)+(v.dutyPct>0?' + '+fmtCurrency4(v.dutyPerCarton):'')+' = '+fmtCurrency4(v.landedCostPerCarton));
   lines.push('Landed/bag: '+fmtCurrency4(v.landedCostPerCarton)+' ÷ '+v.qtyPerCarton+' bags/ctn = '+fmtCurrency4(v.landedCostPerBag));
   lines.push('Total landed: '+v.cartons+' ctns × '+fmtCurrency4(v.landedCostPerCarton)+' = '+fmtCurrency(v.totalLanded));
+  // Item-alone (solo) chain — same live variables, this item bearing charges alone.
+  lines.push('');
+  lines.push('— Item alone (solo) —');
+  const soloNote=isFcl?'full container freight':'full LCL charges @ item CBM';
+  lines.push('Solo freight/carton: '+fmtCurrency(v.soloFreightTotal)+' ('+soloNote+') ÷ '+v.cartons+' ctns = '+fmtCurrency4(v.soloFreightPerCarton));
+  if(v.dutyPct>0){
+    lines.push('Solo duty/carton: ('+fmtCurrency4(v.audPricePerCarton)+' + '+fmtCurrency4(v.soloFreightPerCarton)+') × '+v.dutyPct+'% = '+fmtCurrency4(v.soloDutyPerCarton));
+  }
+  lines.push('Solo landed/carton: '+fmtCurrency4(v.audPricePerCarton)+' + '+fmtCurrency4(v.soloFreightPerCarton)+(v.dutyPct>0?' + '+fmtCurrency4(v.soloDutyPerCarton):'')+' = '+fmtCurrency4(v.soloLandedPerCarton));
+  lines.push('Solo landed/bag: '+fmtCurrency4(v.soloLandedPerCarton)+' ÷ '+v.qtyPerCarton+' bags/ctn = '+fmtCurrency4(v.soloLandedPerBag));
   return lines.join('\n');
 }
 
@@ -1222,6 +1286,7 @@ function updateLandedProductRows(){
   const exchangeRate=parseMoney(document.getElementById('landed-exchange-rate').value) || 1;
   const totalCharge=parseMoney(document.getElementById('landed-total-charge').value.replace(/[^0-9.-]/g,''));
   const mode=document.getElementById('landed-ship-mode').value;
+  const port=document.getElementById('landed-origin-port').value;
   const rows=document.querySelectorAll('#landed-product-body tr.landed-product-row');
   let totalCbm=0;
   let totalCartons=0;
@@ -1254,18 +1319,35 @@ function updateLandedProductRows(){
     const rowTotalCbm = cbmPerCarton * cartons;
     grandTotalLanded += totalLanded;
 
+    // Solo (item-alone) landed/bag — this item bearing the whole shipment's freight.
+    const soloFreightTotal = computeSoloFreightTotal(mode,port,exchangeRate,rowTotalCbm,totalCharge);
+    const soloFreightPerCarton = cartons>0 ? soloFreightTotal / cartons : 0;
+    const soloDutyPerCarton = (audPricePerCarton+soloFreightPerCarton) * (dutyPct/100);
+    const soloLandedPerCarton = audPricePerCarton + soloFreightPerCarton + soloDutyPerCarton;
+    const soloLandedPerBag = qtyPerCarton>0 ? soloLandedPerCarton / qtyPerCarton : 0;
+
     const audPriceField=row.querySelector('[data-field="aud-price-per-carton"]');
     const freightField=row.querySelector('[data-field="aud-freight-per-carton"]');
     const landedCartonField=row.querySelector('[data-field="aud-landed-cost-per-carton"]');
     const landedBagField=row.querySelector('[data-field="aud-landed-cost-per-bag"]');
+    const soloBagField=row.querySelector('[data-field="aud-landed-cost-per-bag-solo"]');
     const totalLandedField=row.querySelector('[data-field="aud-total-landed"]');
     const totalCbmField=row.querySelector('[data-field="total-cbm"]');
     if(audPriceField) audPriceField.value=fmtCurrency4(audPricePerCarton);
     if(freightField) freightField.value=fmtCurrency4(freightPerCarton);
     if(landedCartonField) landedCartonField.value=fmtCurrency4(landedCostPerCarton);
     if(landedBagField) landedBagField.value=fmtCurrency4(landedCostPerBag);
+    if(soloBagField) soloBagField.value=fmtCurrency4(soloLandedPerBag);
     if(totalLandedField) totalLandedField.value=fmtCurrency(totalLanded);
     if(totalCbmField) totalCbmField.value=rowTotalCbm.toFixed(4);
+
+    // Hide fully-empty product rows on print.
+    const skuVal=(row.querySelector('[data-field="sku"]').value||'').trim();
+    const descVal=(row.querySelector('[data-field="desc"]').value||'').trim();
+    const isEmptyRow = !skuVal && !descVal && cartons===0 && usdPrice===0;
+    row.classList.toggle('empty-line-print',isEmptyRow);
+    const wr=row.nextElementSibling;
+    if(wr&&wr.classList.contains('landed-workings-row')) wr.classList.toggle('empty-line-print',isEmptyRow);
 
     // Mark the CBM toggle when dimensions/CBM are present, so the collapsed cell hints it has data.
     const cbmToggle=row.querySelector('.cbm-toggle');
@@ -1290,7 +1372,8 @@ function updateLandedProductRows(){
       if(panel) panel.textContent=buildLandedWorkings({
         usdPrice,qtyPerCarton,exchangeRate,totalCharge,cbmDivisor,cbmPerCarton,
         cartons,dutyPct,audPricePerCarton,freightPerCarton,dutyPerCarton,
-        landedCostPerCarton,landedCostPerBag,totalLanded,mode,totalCbm
+        landedCostPerCarton,landedCostPerBag,totalLanded,mode,totalCbm,
+        soloFreightTotal,soloFreightPerCarton,soloDutyPerCarton,soloLandedPerCarton,soloLandedPerBag
       });
     }
   });
@@ -1307,6 +1390,9 @@ function printLandedCost(){
   const port=document.getElementById('landed-origin-port').value;
   document.getElementById('landed-print-meta').textContent=
     mode+' from '+port+' — '+todayISO().split('-').reverse().join('/');
+  document.body.classList.add('print-landed');
+  const cleanup=()=>{document.body.classList.remove('print-landed');window.removeEventListener('afterprint',cleanup);};
+  window.addEventListener('afterprint',cleanup);
   window.print();
 }
 

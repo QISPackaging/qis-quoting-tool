@@ -228,6 +228,29 @@ test('shows reporting chart for quote statuses', async ({ page }) => {
   await expect(page.locator('#reporting-metrics')).toContainText('Quotes by rep');
   await expect(page.locator('#reporting-metrics')).toContainText('Jack');
   await expect(page.locator('#reporting-metrics')).toContainText('2');
+
+  // Navy reporting hero band shows existing computed stats (no new queries).
+  const hero = page.locator('.reporting-hero');
+  await expect(hero).toBeVisible();
+  await expect(hero).toContainText('Quotes');
+  await expect(hero).toContainText('Total value');
+  await expect(hero).toContainText('Win rate');
+  await expect(hero.locator('.rh-item')).toHaveCount(4);
+});
+
+test('restyle: active tab gets the gold underline and header brand renders', async ({ page }) => {
+  await mockQuotesApi(page);
+  await page.goto(appPath);
+
+  await expect(page.locator('.app-header .brand-mark')).toHaveText('QIS');
+  const active = page.locator('.tab.active');
+  await expect(active).toHaveText('Calculator');
+  const borderColor = await active.evaluate(el => getComputedStyle(el).borderBottomColor);
+  // #c9962e === rgb(201, 150, 46)
+  expect(borderColor).toBe('rgb(201, 150, 46)');
+
+  // Only one tab set exists (no duplicate that would break locators).
+  await expect(page.locator('button.tab', { hasText: 'Saved quotes' })).toHaveCount(1);
 });
 
 test('deletes a quote after confirmation from the saved quotes list', async ({ page }) => {

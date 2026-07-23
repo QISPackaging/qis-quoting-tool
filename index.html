@@ -345,68 +345,79 @@ input[data-field="order-qty"]{-moz-appearance:textfield;appearance:textfield}
    Applied as a trailing override layer so existing selectors/IDs are untouched.
    ───────────────────────────────────────────────────────────────────────── */
 :root{
-  --qis-cream:#faf8f3;
-  --qis-navy:#1e2a44;
-  --qis-gold:#c9962e;
-  --qis-card-border:#e8e3d8;
-  --qis-muted:#8a8474;
+  --paper:#F5F3EE;
+  --card:#FFFFFF;
+  --ink:#22314A;
+  --ink-soft:#5E6774;
+  --line:#E3E0D8;
+  --accent:#B98A3C;
+  --accent-soft:#F3EADA;
+  --good:#1E7B4F;--good-bg:#E4F1E9;
+  --warn:#9A6B00;--warn-bg:#F7EFD8;
+  --bad:#AE3B32;--bad-bg:#F9E7E5;
   --qis-shadow:0 1px 3px rgba(0,0,0,0.06);
 }
-body{background:var(--qis-cream);color:#26221a;font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;padding:0}
-.top-strip{height:6px;background:var(--qis-navy)}
-.app-header{background:#fff;border-bottom:1px solid var(--qis-card-border);box-shadow:var(--qis-shadow)}
-.app-header-inner{max-width:1500px;margin:0 auto;display:flex;align-items:center;gap:28px;padding:0 24px;flex-wrap:wrap}
-.brand{display:flex;align-items:baseline;gap:8px;padding:14px 0}
-.brand-mark{font-size:20px;font-weight:700;letter-spacing:0.04em;color:var(--qis-navy)}
-.brand-name{font-size:15px;font-weight:500;color:var(--qis-muted)}
-.app-header .tabs{margin-bottom:0;border-bottom:none;gap:2px}
+body{background:var(--paper);color:var(--ink);font-family:"Avenir Next","Segoe UI",system-ui,-apple-system,sans-serif;font-size:15px;line-height:1.5;padding:0}
+.top-strip{height:6px;background:var(--ink)}
+.app-header{background:var(--card);box-shadow:var(--qis-shadow)}
+.app-header-inner{max-width:1500px;margin:0 auto;display:flex;align-items:center;gap:28px;padding:0 24px;border-bottom:2px solid var(--ink);flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:10px;padding:12px 0}
+.brand-name{font-size:15px;font-weight:600;color:var(--ink-soft)}
+.app-header .tabs{margin-bottom:0;border-bottom:none;gap:22px;align-self:stretch;align-items:center}
 .container{padding:24px 24px 48px}
-.tabs{border-bottom:1px solid var(--qis-card-border)}
-.tab{color:var(--qis-muted);font-size:13px;font-weight:500}
-.tab:hover{color:var(--qis-navy)}
-.tab.active{color:var(--qis-navy);border-bottom:2px solid var(--qis-gold);font-weight:600}
-.section{background:#fff;border:1px solid var(--qis-card-border);border-radius:8px;box-shadow:var(--qis-shadow)}
-.section-title{display:flex;align-items:center;gap:10px;font-size:11px;letter-spacing:0.08em;color:var(--qis-muted);font-weight:600}
-.section-title::after{content:"";flex:1;height:1px;background:var(--qis-card-border)}
+.tabs{border-bottom:none}
+.tab{color:var(--ink-soft);font-size:13.5px;font-weight:600;border-bottom:2px solid transparent;padding:8px 2px}
+.tab:hover{color:var(--ink);border-bottom-color:var(--accent)}
+.tab.active{color:var(--ink);border-bottom:2px solid var(--accent);font-weight:600}
+.section{background:var(--card);border:1px solid var(--line);border-radius:6px;box-shadow:var(--qis-shadow);padding:14px 15px}
+.section-title{display:flex;align-items:center;gap:10px;font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:var(--ink-soft);font-weight:600}
+.section-title::after{content:"";flex:1;height:1px;background:var(--line)}
 /* Stat/summary cards — dashboard style: big number, small uppercase label. */
-.card{background:#fff;border:1px solid var(--qis-card-border);border-radius:8px;box-shadow:var(--qis-shadow)}
-.card .clabel{color:var(--qis-muted);letter-spacing:0.08em}
-.card .cval{font-size:28px;font-weight:600;color:var(--qis-navy);font-variant-numeric:tabular-nums}
-.card.red{background:#fdecea;border-color:#f3cfca}.card.red .clabel{color:#a9432f}.card.red .cval{color:#c0392b}
-.card.amber{background:#fbf1dd;border-color:#ecd6a3}.card.amber .clabel{color:#8a6414}.card.amber .cval{color:#8a6414}
-.card.green{background:#e8f5ec;border-color:#c2e2cc}.card.green .clabel{color:#1e7d43}.card.green .cval{color:#1e7d43}
-/* Buttons — primary navy, secondary white/border, no gradients. */
-.save-btn{background:var(--qis-navy);box-shadow:none;border-radius:6px}
-.save-btn:hover{background:#16203a}
-.save-btn:focus{box-shadow:0 0 0 3px rgba(30,42,68,0.25)}
-.new-btn,.pdf-btn,.add-btn{background:#fff;border:1px solid var(--qis-card-border);color:var(--qis-navy);border-radius:6px}
-.new-btn:hover,.pdf-btn:hover,.add-btn:hover{background:var(--qis-cream)}
-.btn-confirm{background:var(--qis-navy);border-radius:6px}
-.btn-confirm:hover{background:#16203a}
-/* Tables — white card container (via .section), muted small-caps header, cream hover, tabular numbers. */
-.line-table th,.quotes-table th,.compare-table th{color:var(--qis-muted);letter-spacing:0.05em;text-transform:uppercase;border-bottom-color:var(--qis-card-border)}
-.line-table td,.quotes-table td,.compare-table td{border-bottom-color:#f0ece2;font-variant-numeric:tabular-nums}
-.quotes-table tr:hover td{background:var(--qis-cream)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:6px;box-shadow:var(--qis-shadow);padding:14px 15px}
+.card .clabel{color:var(--ink-soft);letter-spacing:0.12em;text-transform:uppercase}
+.card .cval{font-size:26px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
+.card.red{background:var(--bad-bg);border-color:#eecfca}.card.red .clabel{color:var(--bad)}.card.red .cval{color:var(--bad)}
+.card.amber{background:var(--warn-bg);border-color:#e9d9a6}.card.amber .clabel{color:var(--warn)}.card.amber .cval{color:var(--warn)}
+.card.green{background:var(--good-bg);border-color:#c3e0cf}.card.green .clabel{color:var(--good)}.card.green .cval{color:var(--good)}
+/* Buttons — primary ink, secondary transparent/border, accent gold, danger red. No gradients. */
+.save-btn{background:var(--ink);color:#fff;box-shadow:none;border-radius:5px;font-weight:600}
+.save-btn:hover{background:#2e415f}
+.save-btn:focus{box-shadow:0 0 0 3px rgba(34,49,74,0.25)}
+.new-btn,.pdf-btn,.add-btn{background:transparent;border:1px solid var(--ink);color:var(--ink);border-radius:5px;font-weight:600}
+.new-btn:hover,.pdf-btn:hover,.add-btn:hover{background:var(--accent-soft)}
+.btn-confirm{background:var(--ink);border-radius:5px}
+.btn-confirm:hover{background:#2e415f}
+/* Inputs — subtle line border, warm-white field. */
+.field input,.field select,.field textarea,.line-table input,.input-prefix,.breakdown-row input{border-color:var(--line);border-radius:5px;background:#FFFDF8}
+.field input:focus,.field select:focus,.field textarea:focus,.line-table input:focus,.input-prefix:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px rgba(185,138,60,0.15)}
+/* Tables — muted small-caps header with ink underline, tabular numbers, right-aligned except first column. */
+.line-table th,.quotes-table th,.compare-table th{color:var(--ink-soft);font-size:11px;letter-spacing:0.09em;text-transform:uppercase;border-bottom:1.5px solid var(--ink)}
+.line-table td,.quotes-table td,.compare-table td{border-bottom-color:var(--line);font-variant-numeric:tabular-nums}
+.quotes-table td,.compare-table td{padding:7px 10px}
+.quotes-table th:not(:first-child),.quotes-table td:not(:first-child),.compare-table th:not(:first-child),.compare-table td:not(:first-child){text-align:right}
+.quotes-table tr:hover td{background:var(--paper)}
 .tot-cell,.gp-cell{font-variant-numeric:tabular-nums}
 .tot-cell{text-align:right}
 /* Sliders — gold accent. */
-input[type="range"]{accent-color:var(--qis-gold)}
-.line-slider-inner input[type="range"]{accent-color:var(--qis-gold)}
+input[type="range"]{accent-color:var(--accent)}
+.line-slider-inner input[type="range"]{accent-color:var(--accent)}
 /* Badges & dots — consistent with palette. */
-.source-badge{background:#eef0f4;border-color:#d5dae4;color:var(--qis-navy)}
-.missing-cost-dot{background:var(--qis-gold)}
-.overdue-dot{background:var(--qis-gold)}
-/* Status pills — soft red/green per palette. */
-.status-pill.won{background:#e8f5ec;color:#1e7d43}
-.status-pill.lost{background:#fdecea;color:#c0392b}
-.status-pill.pending{background:#eef0f4;color:var(--qis-navy)}
-.tag{background:#fdecea;color:#c0392b}
-/* Reporting hero band — navy, large white numbers (styled if present; populated by existing JS). */
-.reporting-hero{background:var(--qis-navy);border-radius:8px;padding:20px 24px;margin-bottom:1rem;display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:20px}
-.reporting-hero .rh-item{color:#fff}
-.reporting-hero .rh-label{font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:#aab2c4;margin-bottom:6px}
-.reporting-hero .rh-value{font-size:28px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.1}
-.reporting-hero .rh-caption{font-size:11px;color:#8c95ab;margin-top:4px}
+.source-badge{background:var(--accent-soft);border-color:#e2d3b6;color:#8a6414;border-radius:99px;font-weight:600}
+.missing-cost-dot{background:var(--accent)}
+.overdue-dot{background:var(--accent)}
+/* Status chips — pill radius with good/warn/bad pairs. */
+.status-pill{border-radius:99px;font-size:11px;font-weight:600;padding:2px 8px}
+.status-pill.won{background:var(--good-bg);color:var(--good)}
+.status-pill.lost{background:var(--bad-bg);color:var(--bad)}
+.status-pill.pending{background:var(--accent-soft);color:#8a6414}
+.status-pill.withdrawn{background:#eceae4;color:var(--ink-soft)}
+.tag{background:var(--bad-bg);color:var(--bad)}
+/* Reporting hero — dark ink band, light text, large tabular values. */
+.reporting-hero{background:var(--ink);border-radius:6px;padding:20px 22px;margin-bottom:1rem;display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:20px}
+.reporting-hero .rh-item{color:#F7F5F0}
+.reporting-hero .rh-label{font-size:11px;letter-spacing:0.12em;text-transform:uppercase;opacity:0.65;margin-bottom:6px}
+.reporting-hero .rh-value{font-size:26px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.1}
+.reporting-hero .rh-caption{font-size:12.5px;opacity:0.75;margin-top:4px}
 @media screen and (max-width:768px){
   .app-header-inner{gap:10px;padding:0 12px}
   .container{padding:12px 12px 40px}
@@ -421,7 +432,7 @@ input[type="range"]{accent-color:var(--qis-gold)}
 <div class="top-strip no-print"></div>
 <div class="app-header no-print">
   <div class="app-header-inner">
-    <div class="brand"><span class="brand-mark">QIS</span><span class="brand-name">Quoting</span></div>
+    <div class="brand"><img src="qis-logo.png" alt="QIS Packaging" style="height:30px;width:auto;display:block"><span class="brand-name">Quoting</span></div>
 <div class="tabs no-print">
   <button class="tab active" onclick="showTab('calculator',this)">Calculator</button>
   <button class="tab" onclick="showTab('landed',this)">Landed Cost Calculator</button>

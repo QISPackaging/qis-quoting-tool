@@ -242,12 +242,12 @@ test('restyle: active tab gets the gold underline and header brand renders', asy
   await mockQuotesApi(page);
   await page.goto(appPath);
 
-  await expect(page.locator('.app-header .brand-mark')).toHaveText('QIS');
+  await expect(page.locator('.app-header .brand img[alt="QIS Packaging"]')).toHaveAttribute('src', 'qis-logo.png');
   const active = page.locator('.tab.active');
   await expect(active).toHaveText('Calculator');
   const borderColor = await active.evaluate(el => getComputedStyle(el).borderBottomColor);
-  // #c9962e === rgb(201, 150, 46)
-  expect(borderColor).toBe('rgb(201, 150, 46)');
+  // --accent #B98A3C === rgb(185, 138, 60)
+  expect(borderColor).toBe('rgb(185, 138, 60)');
 
   // Only one tab set exists (no duplicate that would break locators).
   await expect(page.locator('button.tab', { hasText: 'Saved quotes' })).toHaveCount(1);
@@ -1213,6 +1213,8 @@ test('clears all line items after confirmation and leaves one fresh blank line',
   await page.locator('#line-items-body input[data-field="sku"]').nth(0).fill('FIRST');
   await page.locator('#add-line-btn').click();
   await page.locator('#line-items-body input[data-field="sku"]').nth(1).fill('SECOND');
+  // Dismiss the product-search dropdown so it doesn't overlay the Clear-all button.
+  await page.locator('#line-items-body input[data-field="sku"]').nth(1).blur();
 
   await expect(page.locator('#line-items-body tr:not(.line-slider-row)')).toHaveCount(2);
 

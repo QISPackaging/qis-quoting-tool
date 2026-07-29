@@ -773,7 +773,7 @@ input[type="range"]{accent-color:var(--accent)}
       </div>
       <div class="field">
         <label for="landed-exchange-rate">USD to AUD exchange rate</label>
-        <input type="number" id="landed-exchange-rate" min="0.0001" step="0.0001" value="0.65">
+        <input type="number" id="landed-exchange-rate" min="0.0001" step="0.0001" value="0.6814">
       </div>
       <div class="field">
         <label for="landed-tt-deposit-fee">Westpac TT deposit fee</label>
@@ -907,62 +907,49 @@ input[type="range"]{accent-color:var(--accent)}
 const GP_RED=30;    // below this: needs approval
 const GP_AMBER=65;  // below this: below target; at or above: on target
 
+// Rate card: 15th July – 31st July 2026 (Cyclone Global Logistics). Ocean freight
+// is USD per container, FOB Brisbane. Dual-carrier lanes use the named COSCO rate.
 const LANDED_RATE_TABLE = {
   '20ft FCL': {
-    'Colombo': { rate: 1100, carrier: 'OOCL' },
-    'Haiphong': { rate: 825, carrier: 'PIL' },
-    'Ho Chi Minh': { rate: 850, carrier: 'COSCO' },
-    'Jakarta': { rate: 925, carrier: 'OOCL' },
-    'Jiangmen': { rate: 1600, carrier: 'TSL' },
-    'Karachi': { rate: 1100, carrier: 'OOCL' },
-    'Nhava Sheva': { rate: 1175, carrier: 'COSCO' },
-    'Port Kelang': { rate: 850, carrier: 'OOCL' },
-    'Qingdao': { rate: 1650, carrier: 'MSC' },
-    'Semarang': { rate: 925, carrier: 'OOCL' },
-    'Shanghai': { rate: 1550, carrier: 'MSC' },
-    'Shenzhen': { rate: 1550, carrier: 'EMC' },
-    'Surabaya': { rate: 900, carrier: 'OOCL' },
-    'Xiamen': { rate: 1550, carrier: 'ZIM' },
-    'Yantian': { rate: 1550, carrier: 'HMM' },
-    'Ningbo': { rate: 1550, carrier: 'ZIM' },
+    'Colombo': { rate: 1900, carrier: 'OOCL' },
+    'Haiphong': { rate: 1900, carrier: 'COSCO' },
+    'Ho Chi Minh': { rate: 1900, carrier: 'COSCO' },
+    'Karachi': { rate: 1900, carrier: 'OOCL' },
+    'Qingdao': { rate: 2200, carrier: 'COSCO' },
+    'Semarang': { rate: 1650, carrier: 'OOCL' },
+    'Shanghai': { rate: 2525, carrier: 'COSCO' },
+    'Xiamen': { rate: 2525, carrier: 'COSCO' },
+    'Yantian': { rate: 2525, carrier: 'COSCO' },
+    'Ningbo': { rate: 2525, carrier: 'COSCO' },
   },
   '40ft FCL': {
-    'Colombo': { rate: 2200, carrier: 'OOCL' },
-    'Haiphong': { rate: 1550, carrier: 'PIL' },
-    'Ho Chi Minh': { rate: 1700, carrier: 'COSCO' },
-    'Jakarta': { rate: 1850, carrier: 'OOCL' },
-    'Jiangmen': { rate: 3200, carrier: 'TSL' },
-    'Karachi': { rate: 2200, carrier: 'OOCL' },
-    'Nhava Sheva': { rate: 2350, carrier: 'COSCO' },
-    'Port Kelang': { rate: 1700, carrier: 'OOCL' },
-    'Qingdao': { rate: 3300, carrier: 'MSC' },
-    'Semarang': { rate: 1850, carrier: 'OOCL' },
-    'Shanghai': { rate: 3100, carrier: 'MSC' },
-    'Shenzhen': { rate: 3100, carrier: 'EMC' },
-    'Surabaya': { rate: 1800, carrier: 'OOCL' },
-    'Xiamen': { rate: 3100, carrier: 'ZIM' },
-    'Yantian': { rate: 3100, carrier: 'HMM' },
-    'Ningbo': { rate: 3100, carrier: 'ZIM' },
+    'Colombo': { rate: 3800, carrier: 'OOCL' },
+    'Haiphong': { rate: 3800, carrier: 'COSCO' },
+    'Ho Chi Minh': { rate: 3800, carrier: 'COSCO' },
+    'Karachi': { rate: 3800, carrier: 'OOCL' },
+    'Qingdao': { rate: 4400, carrier: 'COSCO' },
+    'Semarang': { rate: 3300, carrier: 'OOCL' },
+    'Shanghai': { rate: 5150, carrier: 'COSCO' },
+    'Xiamen': { rate: 5150, carrier: 'COSCO' },
+    'Yantian': { rate: 5150, carrier: 'COSCO' },
+    'Ningbo': { rate: 5150, carrier: 'COSCO' },
   }
 };
 
+// LCL: ocean freight USD per CBM (= minimum), PSS per CBM. WRS/BAF now inclusive.
 const LANDED_LCL_RATE_TABLE = {
   'LCL': {
-    'Nhava Sheva': { perCbm: 46, pss: 22, af: 12 },
-    'New Delhi': { perCbm: 89, pss: 27, af: 12 },
-    'Karachi': { perCbm: 70, pss: 14.5, af: 12 },
-    'Port Kelang': { perCbm: 22, pss: 14.5, af: 12 },
-    'Ho Chi Minh': { perCbm: 27, pss: 14.5, af: 12 },
-    'Haiphong': { perCbm: 49, pss: 14.5, af: 12 },
-    'Keelung': { perCbm: 43, pss: 14.5, af: 12 },
-    'Colombo': { perCbm: 58, pss: 14.5, af: 12 },
-    'Shenzhen': { perCbm: 25, pss: 14.5, af: 12 },
-    'Shanghai': { perCbm: 14, pss: 14.5, af: 12 },
-    'Ningbo': { perCbm: 25, pss: 14.5, af: 12 },
-    'Semarang': { perCbm: 51, pss: 10, af: 14.5 },
-    'Xiamen': { perCbm: 25, pss: 10, af: 14.5 },
-    'Jiangmen': { perCbm: 47, pss: 10, af: 14.5 },
-    'Qingdao': { perCbm: 25, pss: 10, af: 14.5 },
+    'New Delhi': { perCbm: 89, pss: 32 },
+    'Karachi': { perCbm: 90, pss: 20 },
+    'Ho Chi Minh': { perCbm: 45, pss: 20 },
+    'Haiphong': { perCbm: 66, pss: 20 },
+    'Keelung': { perCbm: 50, pss: 20 },
+    'Colombo': { perCbm: 82, pss: 20 },
+    'Shanghai': { perCbm: 35, pss: 20 },
+    'Ningbo': { perCbm: 35, pss: 20 },
+    'Semarang': { perCbm: 59, pss: 30 },
+    'Xiamen': { perCbm: 35, pss: 20 },
+    'Qingdao': { perCbm: 35, pss: 20 },
   }
 };
 
@@ -1017,7 +1004,10 @@ function parseMoney(val){
 }
 
 function getLandedPortOptions(){
-  return Object.keys(LANDED_RATE_TABLE['20ft FCL']).concat(Object.keys(LANDED_RATE_TABLE['40ft FCL'])).filter((value,index,self)=>self.indexOf(value)===index).sort();
+  return Object.keys(LANDED_RATE_TABLE['20ft FCL'])
+    .concat(Object.keys(LANDED_RATE_TABLE['40ft FCL']))
+    .concat(Object.keys(LANDED_LCL_RATE_TABLE.LCL))
+    .filter((value,index,self)=>self.indexOf(value)===index).sort();
 }
 
 function getLandedRateForModePort(mode,port){
@@ -1043,9 +1033,9 @@ function getFreightBreakdownItems(mode,port,exchangeRate,totalCbm){
       {key:'terminalHandling',label:'Terminal handling',value:round2(LCL_DESTINATION_CHARGES.perCbm.terminalHandling*cbm)},
       {key:'portInfrastructure',label:'Port infrastructure',value:round2(LCL_DESTINATION_CHARGES.perCbm.portInfrastructure*cbm)},
       {key:'delivery',label:'Delivery',value:round2(delivery)},
-      {key:'deliveryFuel',label:'Delivery fuel surcharge',value:round2(delivery*0.35)},
+      {key:'deliveryFuel',label:'Delivery fuel surcharge',value:round2(delivery*0.25)},
       {key:'temporaryTerminal',label:'Temporary terminal storage',value:round2(temporaryTerminal)},
-      {key:'temporaryFuel',label:'Temporary terminal fuel surcharge',value:round2(temporaryTerminal*0.35)},
+      {key:'temporaryFuel',label:'Temporary terminal fuel surcharge',value:round2(temporaryTerminal*0.25)},
       {key:'deliveryOrder',label:'Delivery order fee',value:LCL_DESTINATION_CHARGES.perCbm.deliveryOrder},
       {key:'edi',label:'EDI fee',value:LCL_DESTINATION_CHARGES.perCbm.edi},
       {key:'cargoReporting',label:'Cargo reporting',value:LCL_DESTINATION_CHARGES.perCbm.cargoReporting},
@@ -1067,7 +1057,7 @@ function getFreightBreakdownItems(mode,port,exchangeRate,totalCbm){
       {key:'customsClearance',label:'Customs clearance',value:FCL_COMMON_CHARGES.customsClearance},
       {key:'quarantineRegistration',label:'Quarantine registration',value:FCL_COMMON_CHARGES.quarantineRegistration},
       {key:'cartage',label:'Cartage',value:cartage},
-      {key:'domesticFuel',label:'Domestic fuel surcharge',value:round2(cartage*0.35)},
+      {key:'domesticFuel',label:'Domestic fuel surcharge',value:round2(cartage*0.25)},
       {key:'timeSlot',label:'Time slot booking',value:FCL_COMMON_CHARGES.timeSlot},
       {key:'portInfrastructure',label:'Port infrastructure',value:FCL_COMMON_CHARGES.portInfrastructure},
       {key:'tolls',label:'Tolls',value:FCL_COMMON_CHARGES.tolls}

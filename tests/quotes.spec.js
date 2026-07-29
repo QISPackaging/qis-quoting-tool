@@ -365,7 +365,7 @@ test('loads the landed cost calculator and computes landed cost values', async (
   await page.locator('#landed-exchange-rate').fill('0.65');
   await page.locator('#landed-tt-balance-fee').fill('15');
 
-  await expect(page.locator('#landed-ocean-freight')).toHaveValue('1100');
+  await expect(page.locator('#landed-ocean-freight')).toHaveValue('1900');
   await expect(page.locator('#landed-carrier')).toHaveValue('OOCL');
 
   await page.locator('#landed-product-body input[data-field="sku"]').first().fill('SKU-1');
@@ -377,6 +377,34 @@ test('loads the landed cost calculator and computes landed cost values', async (
 
   await expect(page.locator('#landed-product-body input[data-field="aud-price-per-carton"]')).toHaveValue(/346.15|346.2/);
   await expect(page.locator('#landed-product-body input[data-field="aud-landed-cost-per-bag"]')).not.toHaveValue('');
+});
+
+test('landed cost: rate card (Jul 2026) — ocean freight, carrier, and dropped ports', async ({ page }) => {
+  await mockQuotesApi(page);
+  await page.goto(appPath);
+  await page.locator('button.tab', { hasText: 'Landed Cost Calculator' }).click();
+  await page.locator('#landed-ship-mode').selectOption('20ft FCL');
+
+  // Dual-carrier lane resolves to the named COSCO rate.
+  await page.locator('#landed-origin-port').selectOption('Shanghai');
+  await expect(page.locator('#landed-ocean-freight')).toHaveValue('2525');
+  await expect(page.locator('#landed-carrier')).toHaveValue('COSCO');
+
+  // 40ft rate for the same lane.
+  await page.locator('#landed-ship-mode').selectOption('40ft FCL');
+  await expect(page.locator('#landed-ocean-freight')).toHaveValue('5150');
+
+  // Default exchange rate matches the card.
+  await expect(page.locator('#landed-exchange-rate')).toHaveValue('0.6814');
+
+  // Off-card ports are removed; current card lanes remain selectable.
+  const ports = await page.locator('#landed-origin-port option').allTextContents();
+  for (const gone of ['Jakarta', 'Surabaya', 'Nhava Sheva', 'Port Kelang', 'Shenzhen', 'Jiangmen']) {
+    expect(ports).not.toContain(gone);
+  }
+  for (const kept of ['Colombo', 'Qingdao', 'Yantian', 'New Delhi', 'Keelung']) {
+    expect(ports).toContain(kept);
+  }
 });
 
 test('sends landed cost lines into the calculator as cost prices', async ({ page }) => {

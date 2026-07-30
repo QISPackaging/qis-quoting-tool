@@ -749,15 +749,24 @@ test('landed cost: dedicated print shows the full-width table; workings print on
   await expect(page.locator('#landed-table th', { hasText: 'AUD freight & customs/carton' })).toHaveCount(0);
   await expect(page.locator('#landed-table th', { hasText: 'AUD landed/carton' })).toHaveCount(0);
 
-  // Workings toggle OFF → no workings rows print.
+  // In-table workings rows never print; the page-2 container is the only workings output.
   await expect(page.locator('.landed-workings-row').first()).toBeHidden();
+  // Workings toggle OFF → page-2 container is empty and hidden.
+  await expect(page.locator('#landed-workings-print')).toBeHidden();
+  await expect(page.locator('#landed-workings-print .lwp-block')).toHaveCount(0);
 
-  // Turn Show workings ON, then print — panels print even though not expanded on screen.
+  // Turn Show workings ON and print again — workings populate the page-2 container.
   await page.emulateMedia({ media: 'screen' });
   await page.locator('#toggle-workings-btn').click();
+  await page.locator('button:has-text("Print / Export")').click();
   await page.emulateMedia({ media: 'print' });
-  await expect(page.locator('.landed-workings-row').first()).toBeVisible();
-  await expect(page.locator('.landed-workings-row .workings-panel').first()).toBeVisible();
+  await expect(page.locator('#landed-workings-print')).toBeVisible();
+  await expect(page.locator('#landed-workings-print .lwp-block').first()).toBeVisible();
+  // Its break-before:page puts workings on their own page (page 2).
+  const breakBefore = await page.locator('#landed-workings-print').evaluate(el => getComputedStyle(el).breakBefore);
+  expect(breakBefore).toBe('page');
+  // In-table workings rows remain hidden on print.
+  await expect(page.locator('.landed-workings-row').first()).toBeHidden();
 
   await page.emulateMedia({ media: 'screen' });
 });

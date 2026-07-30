@@ -248,28 +248,44 @@ input[data-field="order-qty"]{-moz-appearance:textfield;appearance:textfield}
   body.print-internal .gp-internal-summary{display:block!important;font-size:10pt;border:2px solid #791F1F;margin-top:0.4rem}
   body.print-internal .internal-print-banner{display:block!important;font-size:9.5pt;font-weight:700;color:#791F1F;background:#FAEEDA;border:2px solid #791F1F;border-radius:8px;padding:4px 10px;margin-bottom:0.4rem;text-align:center}
 
-  /* ── Landed Cost tab: dedicated landscape print (only when printing that tab) ── */
-  @page landed{size:A4 landscape;margin:1cm}
+  /* ── Landed Cost tab: dedicated compact landscape print (only when printing that tab) ──
+     Target: 1 page (workings off), max 2 pages (workings on → page 2, multi-column). */
+  @page landed{size:A4 landscape;margin:10mm}
+  body.print-landed{background:#fff!important;color:#111!important}
   body.print-landed .container{page:landed;max-width:100%;width:100%}
-  /* Landed workings rows are hidden on print by default; shown (all, expanded) only
-     when the Show workings toggle is on — the sign-off/audit print. */
-  .landed-workings-row{display:none!important}
-  body.print-landed #landed-table.show-workings .landed-workings-row{display:table-row!important}
-  body.print-landed #landed-table.show-workings .landed-workings-row .workings-panel{display:block!important}
-  body.print-landed #landed-table .workings-toggle{display:none!important}
-  body.print-landed #landed-table{width:100%!important;min-width:0!important;table-layout:fixed;font-size:7.5pt}
-  body.print-landed #landed-table th{font-size:7pt;padding:2px 3px;white-space:normal;overflow:hidden}
-  body.print-landed #landed-table td{padding:2px 3px;overflow:hidden}
-  body.print-landed #landed-table input{font-size:7.5pt}
+  /* Only the products section (table + totals) prints on page 1; config form is hidden. */
+  body.print-landed #landed-config-section{display:none!important}
+  body.print-landed #landed-print-header{margin-bottom:8px;padding-bottom:6px;border-bottom:1.5px solid #111}
+  body.print-landed #landed-print-header div[style*="22px"]{font-size:15px!important}
+  body.print-landed #landed-print-header #landed-print-meta{font-size:10px;margin-top:3px;color:#333}
+  body.print-landed .section{border:none!important;box-shadow:none!important;padding:0!important;margin:0!important}
+  body.print-landed .section-title{font-size:11px;margin-bottom:4px;color:#111}
+  /* Inputs render as plain text values, not form fields. */
+  body.print-landed #landed-table input{border:none!important;background:transparent!important;box-shadow:none!important;padding:0!important;height:auto!important;color:#111!important;-webkit-appearance:none;appearance:none}
+  body.print-landed #landed-table{width:100%!important;min-width:0!important;table-layout:fixed;font-size:9.5px}
+  body.print-landed #landed-table th{font-size:9px;padding:3px 4px;white-space:normal;overflow:hidden;color:#111;border-bottom:1px solid #111}
+  body.print-landed #landed-table td{padding:3px 4px;overflow:hidden;border-bottom:1px solid #d8d8d8}
+  body.print-landed #landed-table tr{break-inside:avoid}
   /* The CBM-calc icon column is screen-only; drop it on print to reclaim width. */
   body.print-landed #landed-table th:nth-child(6),body.print-landed #landed-table td:nth-child(6){display:none!important}
-  body.print-landed #landed-table .workings-panel{font-size:7pt;padding-left:10px}
   body.print-landed .cbm-toggle,body.print-landed .cbm-lwh-pop{display:none!important}
-  /* Freight breakdown prints only when expanded on screen. */
-  body.print-landed #freight-breakdown-body{display:none!important}
-  body.print-landed #freight-breakdown-body.show{display:block!important}
-  .landed-product-row.empty-line-print{display:none!important}
-  body.print-landed #landed-table .landed-workings-row.empty-line-print{display:none!important}
+  /* In-table workings rows never print; workings go to the dedicated page-2 container. */
+  .landed-workings-row{display:none!important}
+  body.print-landed .landed-workings-row{display:none!important}
+  body.print-landed .landed-product-row.empty-line-print{display:none!important}
+  /* Totals — compact; gold accent on the grand total, bold so it also reads in B&W. */
+  body.print-landed .quote-totals{border:1px solid #111!important;border-radius:4px;padding:6px 10px!important;margin-top:8px!important;max-width:340px;margin-left:auto}
+  body.print-landed .quote-totals-row{font-size:10px;padding:2px 0}
+  body.print-landed .quote-totals-row.total{font-size:12px;font-weight:700;color:#111;border-top:2px solid #B98A3C;padding-top:4px}
+  body.print-landed .quote-totals-row.total span:last-child{color:#111;font-size:12px}
+  /* Workings — page 2, compact multi-column; each block stays whole. */
+  #landed-workings-print{display:none}
+  body.print-landed #landed-workings-print{display:block;break-before:page;column-count:3;column-gap:12px;font-size:7px;color:#111}
+  body.print-landed #landed-workings-print:empty{display:none!important}
+  #landed-workings-print .lwp-title{font-size:10px;font-weight:700;margin-bottom:6px;column-span:all;border-bottom:1.5px solid #111;padding-bottom:3px}
+  #landed-workings-print .lwp-block{break-inside:avoid;margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid #e0e0e0}
+  #landed-workings-print .lwp-head{font-weight:700;font-size:7.5px;margin-bottom:1px}
+  #landed-workings-print .lwp-body{font-family:ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap;line-height:1.3}
 }
 .print-only{display:none}
 .internal-print-banner{display:none}
@@ -745,7 +761,7 @@ input[type="range"]{accent-color:var(--accent)}
     <div id="shipments-compare" class="breakdown-body feature-hidden"></div>
   </div>
 
-  <div class="section">
+  <div class="section" id="landed-config-section">
     <div class="section-title">Shipment details</div>
     <div class="row3" style="margin-bottom:12px">
       <div class="field">
@@ -852,6 +868,8 @@ input[type="range"]{accent-color:var(--accent)}
       <button class="save-btn" id="send-to-quote-btn" onclick="sendLandedToQuote()">Send to Quote</button>
     </div>
   </div>
+  <!-- Print-only: item workings, laid out multi-column on page 2 (populated at print time). -->
+  <div id="landed-workings-print" class="print-only" aria-hidden="true"></div>
 </div>
 
 <div id="tab-quotes" class="tab-content">
@@ -1462,8 +1480,44 @@ function updateLandedProductRows(){
 function printLandedCost(){
   const mode=document.getElementById('landed-ship-mode').value;
   const port=document.getElementById('landed-origin-port').value;
+  const fx=document.getElementById('landed-exchange-rate').value;
+  const totalLanded=document.getElementById('landed-total-landed').textContent;
   document.getElementById('landed-print-meta').textContent=
-    mode+' from '+port+' — '+todayISO().split('-').reverse().join('/');
+    mode+' from '+port+'  ·  '+todayISO().split('-').reverse().join('/')
+    +'  ·  FX USD→AUD '+fx+'  ·  Total landed '+totalLanded;
+
+  // Build the page-2 workings container from the live in-row panels (only when the
+  // Show workings toggle is on). Presentation only — no recalculation.
+  const wp=document.getElementById('landed-workings-print');
+  wp.innerHTML='';
+  const table=document.getElementById('landed-table');
+  if(table.classList.contains('show-workings')){
+    const rows=document.querySelectorAll('#landed-product-body tr.landed-product-row');
+    const blocks=[];
+    rows.forEach(row=>{
+      if(row.classList.contains('empty-line-print'))return;
+      const panel=row.nextElementSibling&&row.nextElementSibling.querySelector
+        ?row.nextElementSibling.querySelector('.workings-panel'):null;
+      if(!panel||!panel.textContent.trim())return;
+      const sku=(row.querySelector('[data-field="sku"]').value||'').trim();
+      const desc=(row.querySelector('[data-field="desc"]').value||'').trim();
+      const head=(sku||desc)?[sku,desc].filter(Boolean).join(' — '):'Line';
+      blocks.push({head,body:panel.textContent});
+    });
+    if(blocks.length){
+      const title=document.createElement('div');
+      title.className='lwp-title';title.textContent='Cost workings';
+      wp.appendChild(title);
+      blocks.forEach(b=>{
+        const block=document.createElement('div');block.className='lwp-block';
+        const h=document.createElement('div');h.className='lwp-head';h.textContent=b.head;
+        const body=document.createElement('div');body.className='lwp-body';body.textContent=b.body;
+        block.appendChild(h);block.appendChild(body);
+        wp.appendChild(block);
+      });
+    }
+  }
+
   document.body.classList.add('print-landed');
   const cleanup=()=>{document.body.classList.remove('print-landed');window.removeEventListener('afterprint',cleanup);};
   window.addEventListener('afterprint',cleanup);

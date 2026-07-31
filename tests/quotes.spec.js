@@ -705,6 +705,21 @@ test('landed cost: LCL freight total includes ocean freight and PSS, both overri
   expect(pm(await ocean.inputValue())).toBeCloseTo(240.68, 1);
   expect(pm(await pss.inputValue())).toBeCloseTo(58.70, 1);
 
+  // Exact total = breakdown (incl. ocean + PSS) + Westpac TT deposit ($30).
+  // 240.68+58.70+170+40+50+55+35+85+80+45+90+22.50+18.50+4.63 + 30 = 1025.01
+  expect(await page.locator('#landed-total-charge').inputValue()).toBe('1025.01');
+
+  // Breakdown lines render in the rate-card order.
+  const labels = await page.locator('#freight-breakdown-body .breakdown-row > span').allTextContents();
+  const expectedOrder = [
+    'Ocean Freight', 'PSS', 'Port Service Charges', 'Terminal Handling Charge',
+    'Port Infrastructure', 'Delivery Order Charge', 'EDI Fee', 'Cargo Reporting',
+    'Customs Clearance', 'Quarantine Registration Fee', 'Delivery — Archerfield',
+    'Domestic Fuel Levy', 'Temporary Terminal F/C', 'Temporary Terminal Fuel Levy'
+  ];
+  expect(labels.length).toBe(expectedOrder.length);
+  labels.forEach((label, i) => expect(label.startsWith(expectedOrder[i])).toBeTruthy());
+
   // Overriding the ocean line flows through to the total freight figure.
   const before = pm(await page.locator('#landed-total-charge').inputValue());
   await page.locator('#breakdown-toggle-btn').click(); // reveal the breakdown inputs

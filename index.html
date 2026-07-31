@@ -1058,21 +1058,23 @@ function getFreightBreakdownItems(mode,port,exchangeRate,totalCbm){
     const temporaryTerminal=Math.max(18.5,5*cbm);
     const fx=exchangeRate||1;
     const pssRate=rateData.pss!=null?rateData.pss:20;
+    // Order and labels mirror the forwarder's LCL rate card so a rep can check line
+    // against line. Item keys are unchanged so saved overrides keep working.
     items.push(
-      {key:'oceanFreight',label:'Ocean freight (USD '+rateData.perCbm+'/CBM × '+cbm.toFixed(2)+' ÷ '+exchangeRate+')',value:round2((rateData.perCbm*cbm)/fx)},
+      {key:'oceanFreight',label:'Ocean Freight (USD '+rateData.perCbm+'/CBM × '+cbm.toFixed(2)+' CBM ÷ '+exchangeRate+')',value:round2((rateData.perCbm*cbm)/fx)},
       {key:'pss',label:'PSS (USD '+pssRate+'/CBM)',value:round2((pssRate*cbm)/fx)},
-      {key:'portService',label:'Port service ('+cbm.toFixed(2)+' CBM)',value:round2(LCL_DESTINATION_CHARGES.perCbm.portService*cbm)},
-      {key:'terminalHandling',label:'Terminal handling',value:round2(LCL_DESTINATION_CHARGES.perCbm.terminalHandling*cbm)},
-      {key:'portInfrastructure',label:'Port infrastructure',value:round2(LCL_DESTINATION_CHARGES.perCbm.portInfrastructure*cbm)},
-      {key:'delivery',label:'Delivery',value:round2(delivery)},
-      {key:'deliveryFuel',label:'Delivery fuel surcharge',value:round2(delivery*0.25)},
-      {key:'temporaryTerminal',label:'Temporary terminal storage',value:round2(temporaryTerminal)},
-      {key:'temporaryFuel',label:'Temporary terminal fuel surcharge',value:round2(temporaryTerminal*0.25)},
-      {key:'deliveryOrder',label:'Delivery order fee',value:LCL_DESTINATION_CHARGES.perCbm.deliveryOrder},
-      {key:'edi',label:'EDI fee',value:LCL_DESTINATION_CHARGES.perCbm.edi},
-      {key:'cargoReporting',label:'Cargo reporting',value:LCL_DESTINATION_CHARGES.perCbm.cargoReporting},
-      {key:'customsClearance',label:'Customs clearance',value:LCL_DESTINATION_CHARGES.perCbm.customsClearance},
-      {key:'quarantineRegistration',label:'Quarantine registration',value:LCL_DESTINATION_CHARGES.perCbm.quarantineRegistration}
+      {key:'portService',label:'Port Service Charges ('+cbm.toFixed(2)+' CBM)',value:round2(LCL_DESTINATION_CHARGES.perCbm.portService*cbm)},
+      {key:'terminalHandling',label:'Terminal Handling Charge',value:round2(LCL_DESTINATION_CHARGES.perCbm.terminalHandling*cbm)},
+      {key:'portInfrastructure',label:'Port Infrastructure',value:round2(LCL_DESTINATION_CHARGES.perCbm.portInfrastructure*cbm)},
+      {key:'deliveryOrder',label:'Delivery Order Charge',value:LCL_DESTINATION_CHARGES.perCbm.deliveryOrder},
+      {key:'edi',label:'EDI Fee',value:LCL_DESTINATION_CHARGES.perCbm.edi},
+      {key:'cargoReporting',label:'Cargo Reporting',value:LCL_DESTINATION_CHARGES.perCbm.cargoReporting},
+      {key:'customsClearance',label:'Customs Clearance',value:LCL_DESTINATION_CHARGES.perCbm.customsClearance},
+      {key:'quarantineRegistration',label:'Quarantine Registration Fee',value:LCL_DESTINATION_CHARGES.perCbm.quarantineRegistration},
+      {key:'delivery',label:'Delivery — Archerfield (min $90 or $30/CBM)',value:round2(delivery)},
+      {key:'deliveryFuel',label:'Domestic Fuel Levy (25% of Delivery)',value:round2(delivery*0.25)},
+      {key:'temporaryTerminal',label:'Temporary Terminal F/C (min $18.50 or $5/CBM)',value:round2(temporaryTerminal)},
+      {key:'temporaryFuel',label:'Temporary Terminal Fuel Levy (25%)',value:round2(temporaryTerminal*0.25)}
     );
   } else {
     const rateData=getLandedRateForModePort(mode,port);

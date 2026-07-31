@@ -686,6 +686,52 @@ test('landed cost: FCL solo landed/bag equals full freight ÷ item cartons', asy
   expect(Math.abs(solo - expected)).toBeLessThan(0.001);
 });
 
+test('landed cost: LCL freight total includes ocean freight and PSS, both overridable', async ({ page }) => {
+  await mockQuotesApi(page);
+  await page.goto(appPath);
+  await page.locator('button.tab', { hasText: 'Landed Cost Calculator' }).click();
+
+  await page.locator('#landed-ship-mode').selectOption('LCL');
+  await page.locator('#landed-origin-port').selectOption('Colombo'); // perCbm 82, PSS 20
+  await page.locator('#landed-exchange-rate').fill('0.6814');
+  // totalCbm = 0.5 × 4 = 2 CBM (above the 1 CBM minimum).
+  await fillLandedRow(page, 0, { 'usd-price': '5', 'qty-per-carton': '50', 'cbm-per-carton': '0.5', 'cartons': '4' });
+
+  const ocean = page.locator('#freight-breakdown-body input[data-breakdown-key="oceanFreight"]');
+  const pss = page.locator('#freight-breakdown-body input[data-breakdown-key="pss"]');
+  await expect(ocean).toHaveCount(1);
+  await expect(pss).toHaveCount(1);
+  // Ocean = 82 × 2 ÷ 0.6814 = 240.68 ; PSS = 20 × 2 ÷ 0.6814 = 58.70
+  expect(pm(await ocean.inputValue())).toBeCloseTo(240.68, 1);
+  expect(pm(await pss.inputValue())).toBeCloseTo(58.70, 1);
+
+  // Overriding the ocean line flows through to the total freight figure.
+  const before = pm(await page.locator('#landed-total-charge').inputValue());
+  await page.locator('#breakdown-toggle-btn').click(); // reveal the breakdown inputs
+  await ocean.fill('9999');
+  await ocean.dispatchEvent('input');
+  const after = pm(await page.locator('#landed-total-charge').inputValue());
+  expect(after).toBeGreaterThan(before + 9000);
+});
+
+test('landed cost: single-product LCL solo includes the item\'s own ocean freight', async ({ page }) => {
+  await mockQuotesApi(page);
+  await page.goto(appPath);
+  await page.locator('button.tab', { hasText: 'Landed Cost Calculator' }).click();
+
+  await page.locator('#landed-ship-mode').selectOption('LCL');
+  await page.locator('#landed-origin-port').selectOption('Colombo');
+  await page.locator('#landed-exchange-rate').fill('0.6814');
+  await fillLandedRow(page, 0, { 'usd-price': '5', 'qty-per-carton': '50', 'cbm-per-carton': '0.5', 'cartons': '4' });
+
+  const audPrice = pm(await page.locator('#landed-product-body input[data-field="aud-price-per-carton"]').first().inputValue());
+  const solo = pm(await page.locator('#landed-product-body input[data-field="aud-landed-cost-per-bag-solo"]').first().inputValue());
+  const bundled = pm(await page.locator('#landed-product-body input[data-field="aud-landed-cost-per-bag"]').first().inputValue());
+  // Single item: solo == bundled, and both exceed the freight-free price-per-bag (freight, incl ocean, is included).
+  expect(Math.abs(solo - bundled)).toBeLessThan(0.001);
+  expect(solo).toBeGreaterThan(audPrice / 50 + 1);
+});
+
 test('landed cost: LCL solo exceeds bundled per-bag for a small item dominated by fixed charges', async ({ page }) => {
   await mockQuotesApi(page);
   await page.goto(appPath);
@@ -748,6 +794,17 @@ test('landed cost: dedicated print shows the full-width table; workings print on
   // The two intermediate-workings columns are gone from the table.
   await expect(page.locator('#landed-table th', { hasText: 'AUD freight & customs/carton' })).toHaveCount(0);
   await expect(page.locator('#landed-table th', { hasText: 'AUD landed/carton' })).toHaveCount(0);
+
+  // Shipment charges summary prints with charge lines and a dollar total (widgets hidden, values shown).
+  const charges = page.locator('#landed-charges-print');
+  await expect(charges).toBeVisible();
+  await expect(charges).toContainText('Cargo reporting');
+  await expect(charges).toContainText('Customs clearance');
+  await expect(charges).toContainText('Total freight & charges');
+  await expect(charges.locator('.lcp-total')).toContainText('$');
+  await expect(charges.locator('.lcp-row').first()).toBeVisible();
+  // The config form widgets themselves stay hidden on print.
+  await expect(page.locator('#landed-config-section')).toBeHidden();
 
   // In-table workings rows never print; the page-2 container is the only workings output.
   await expect(page.locator('.landed-workings-row').first()).toBeHidden();

@@ -253,8 +253,15 @@ input[data-field="order-qty"]{-moz-appearance:textfield;appearance:textfield}
   @page landed{size:A4 landscape;margin:10mm}
   body.print-landed{background:#fff!important;color:#111!important}
   body.print-landed .container{page:landed;max-width:100%;width:100%}
-  /* Only the products section (table + totals) prints on page 1; config form is hidden. */
+  /* Config FORM widgets are hidden; the charge VALUES print via #landed-charges-print. */
   body.print-landed #landed-config-section{display:none!important}
+  #landed-charges-print{display:none}
+  body.print-landed #landed-charges-print{display:block;font-size:9.5px;color:#111;margin:0 0 8px}
+  #landed-charges-print .lcp-title{font-size:10px;font-weight:700;margin-bottom:4px}
+  #landed-charges-print .lcp-cols{column-count:3;column-gap:18px}
+  #landed-charges-print .lcp-row{display:flex;justify-content:space-between;gap:10px;break-inside:avoid;padding:1px 0;border-bottom:1px dotted #ddd}
+  #landed-charges-print .lcp-row span:last-child{font-variant-numeric:tabular-nums;white-space:nowrap}
+  #landed-charges-print .lcp-total{margin-top:5px;font-weight:700;border-top:2px solid #B98A3C;border-bottom:none;padding-top:3px;font-size:10.5px;max-width:280px;margin-left:auto}
   body.print-landed #landed-print-header{margin-bottom:8px;padding-bottom:6px;border-bottom:1.5px solid #111}
   body.print-landed #landed-print-header div[style*="22px"]{font-size:15px!important}
   body.print-landed #landed-print-header #landed-print-meta{font-size:10px;margin-top:3px;color:#333}
@@ -744,6 +751,9 @@ input[type="range"]{accent-color:var(--accent)}
     <div id="landed-print-meta" style="font-size:12px;color:#666;margin-top:6px"></div>
   </div>
 
+  <!-- Print-only: shipment charges breakdown (populated at print time from live values). -->
+  <div id="landed-charges-print" class="print-only" aria-hidden="true"></div>
+
   <div class="section no-print">
     <div class="section-title">Saved shipments</div>
     <div class="row3" style="margin-bottom:0.75rem">
@@ -1046,7 +1056,11 @@ function getFreightBreakdownItems(mode,port,exchangeRate,totalCbm){
     const cbm=Math.max(totalCbm,1);
     const delivery=Math.max(90,30*cbm);
     const temporaryTerminal=Math.max(18.5,5*cbm);
+    const fx=exchangeRate||1;
+    const pssRate=rateData.pss!=null?rateData.pss:20;
     items.push(
+      {key:'oceanFreight',label:'Ocean freight (USD '+rateData.perCbm+'/CBM × '+cbm.toFixed(2)+' ÷ '+exchangeRate+')',value:round2((rateData.perCbm*cbm)/fx)},
+      {key:'pss',label:'PSS (USD '+pssRate+'/CBM)',value:round2((pssRate*cbm)/fx)},
       {key:'portService',label:'Port service ('+cbm.toFixed(2)+' CBM)',value:round2(LCL_DESTINATION_CHARGES.perCbm.portService*cbm)},
       {key:'terminalHandling',label:'Terminal handling',value:round2(LCL_DESTINATION_CHARGES.perCbm.terminalHandling*cbm)},
       {key:'portInfrastructure',label:'Port infrastructure',value:round2(LCL_DESTINATION_CHARGES.perCbm.portInfrastructure*cbm)},
@@ -1485,6 +1499,50 @@ function printLandedCost(){
   document.getElementById('landed-print-meta').textContent=
     mode+' from '+port+'  ·  '+todayISO().split('-').reverse().join('/')
     +'  ·  FX USD→AUD '+fx+'  ·  Total landed '+totalLanded;
+
+  // Build the shipment charges summary from live values (presentation only).
+  const cp=document.getElementById('landed-charges-print');
+  cp.innerHTML='';
+  const chargeRows=[];
+  // Ocean freight rate (informational — as shown in the form).
+  const oceanUsd=document.getElementById('landed-ocean-freight').value;
+  const oceanAud=(document.getElementById('landed-ocean-freight-aud').textContent||'').trim();
+  if(oceanUsd) chargeRows.push(['Ocean freight rate (USD)',oceanUsd+(oceanAud?'  '+oceanAud:'')]);
+  // Every freight/destination charge line from the live breakdown.
+  document.querySelectorAll('#freight-breakdown-body .breakdown-row').forEach(r=>{
+    const label=r.querySelector('span')?r.querySelector('span').textContent.trim():'';
+    const inp=r.querySelector('input');
+    if(label&&inp) chargeRows.push([label,fmtCurrency(parseMoney(inp.value))]);
+  });
+  // Westpac fees and optional add-ons — values that feed the total.
+  const ttDep=parseMoney(document.getElementById('landed-tt-deposit-fee').value);
+  const ttBal=parseMoney(document.getElementById('landed-tt-balance-fee').value);
+  const sideloader=parseMoney(document.getElementById('landed-sideloader-fee').value);
+  if(ttDep) chargeRows.push(['Westpac TT deposit fee',fmtCurrency(ttDep)]);
+  if(ttBal) chargeRows.push(['Westpac TT balance fee',fmtCurrency(ttBal)]);
+  if(document.getElementById('landed-heavy-lift').checked) chargeRows.push(['Heavy lift',fmtCurrency(370)]);
+  if(document.getElementById('landed-demurrage').checked) chargeRows.push(['Demurrage / terminal',fmtCurrency(125)]);
+  if(sideloader) chargeRows.push(['Sideloader fee',fmtCurrency(sideloader)]);
+  if(_totalManualOverride) chargeRows.push(['Freight total','manually overridden']);
+
+  const title=document.createElement('div');
+  title.className='lcp-title';
+  title.textContent='Shipment charges — '+mode+' from '+port;
+  cp.appendChild(title);
+  const cols=document.createElement('div');cols.className='lcp-cols';
+  chargeRows.forEach(([k,v])=>{
+    const row=document.createElement('div');row.className='lcp-row';
+    const a=document.createElement('span');a.textContent=k;
+    const b=document.createElement('span');b.textContent=v;
+    row.appendChild(a);row.appendChild(b);cols.appendChild(row);
+  });
+  cp.appendChild(cols);
+  const totalRow=document.createElement('div');
+  totalRow.className='lcp-row lcp-total';
+  const tl=document.createElement('span');tl.textContent='Total freight & charges';
+  const tv=document.createElement('span');tv.textContent=fmtCurrency(parseMoney(document.getElementById('landed-total-charge').value));
+  totalRow.appendChild(tl);totalRow.appendChild(tv);
+  cp.appendChild(totalRow);
 
   // Build the page-2 workings container from the live in-row panels (only when the
   // Show workings toggle is on). Presentation only — no recalculation.

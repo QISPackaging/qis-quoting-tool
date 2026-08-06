@@ -14,7 +14,8 @@ function mockQuotesApi(page, state = { quotes: [] }) {
 
     if (method === 'GET') {
       const statusFilter = url.searchParams.get('status')?.replace('eq.', '');
-      const filtered = statusFilter ? quotes.filter(q => q.status === statusFilter) : quotes;
+      let filtered = statusFilter ? quotes.filter(q => q.status === statusFilter) : quotes;
+      if (url.searchParams.get('deleted_at') === 'is.null') filtered = filtered.filter(q => !q.deleted_at);
       return route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -45,7 +46,7 @@ function mockQuotesApi(page, state = { quotes: [] }) {
       return route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify([]),
+        body: JSON.stringify(index >= 0 ? [quotes[index]] : []),
       });
     }
 
@@ -161,83 +162,6 @@ test('saved quotes table fits within the page width without horizontal scrolling
   expect(fits).toBe(true);
 });
 
-test('flags pending quotes with past follow-up dates and shows overdue tab badge', async ({ page }) => {
-  const yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
-  const dateString = yesterday.toISOString().substring(0,10);
-  const initialQuotes = [
-    {
-      id: 401,
-      business_name: 'Overdue Co',
-      customer: 'Alex',
-      rep: 'Jack',
-      quote_number: 'SQ-00000222',
-      status: 'pending',
-      quote_date: '2026-06-10',
-      freight: 0,
-      freight_in_gp: false,
-      sell_price: 200,
-      gp_percent: 25,
-      line_items: '[]',
-      followups: [{id:1,date:dateString,note:'Follow-up overdue'}],
-      created_at: '2026-06-10T00:00:00Z',
-    },
-  ];
-  await mockQuotesApi(page, { quotes: initialQuotes });
-
-  await page.goto(appPath);
-  await page.locator('button.tab', { hasText: 'Saved quotes' }).click();
-
-  await expect(page.locator('button#tab-button-quotes')).toHaveText('Saved quotes (1)');
-  await expect(page.locator('table.quotes-table tbody tr', { hasText: 'Overdue Co' }).locator('span.overdue-dot')).toBeVisible();
-});
-
-test('shows reporting chart for quote statuses', async ({ page }) => {
-  const initialQuotes = [
-    { id: 301, status: 'won', rep: 'Jack', gp_percent: 65, sell_price: 1200 },
-    { id: 302, status: 'lost', rep: 'Jack', gp_percent: 48, sell_price: 800 },
-    { id: 303, status: 'pending', rep: 'Sam', gp_percent: 20, sell_price: 300 },
-    { id: 304, status: 'withdrawn', rep: 'Liam', gp_percent: 0, sell_price: 150 },
-    { id: 305, status: 'won', rep: 'Ava', gp_percent: 70, sell_price: 1000 }
-  ];
-  await mockQuotesApi(page, { quotes: initialQuotes });
-
-  const appPath = 'file://' + path.join(__dirname, '..', 'index.html');
-  await page.goto(appPath);
-  await page.locator('button:has-text("Reporting")').click();
-
-  await expect(page.locator('#reporting-summary')).toContainText('Won');
-  await expect(page.locator('#reporting-summary')).toContainText('2');
-  await expect(page.locator('#reporting-summary')).toContainText('Lost');
-  await expect(page.locator('#reporting-summary')).toContainText('1');
-  await expect(page.locator('#reporting-summary')).toContainText('Pending');
-  await expect(page.locator('#reporting-summary')).toContainText('1');
-  await expect(page.locator('#reporting-summary')).toContainText('Withdrawn');
-  await expect(page.locator('#reporting-summary')).toContainText('1');
-  await expect(page.locator('#reporting-chart')).toBeVisible();
-  await expect(page.locator('#reporting-metrics')).toContainText('Total value won');
-  await expect(page.locator('#reporting-metrics')).toContainText('$2,200.00');
-  await expect(page.locator('#reporting-metrics')).toContainText('Total value lost');
-  await expect(page.locator('#reporting-metrics')).toContainText('$800.00');
-  await expect(page.locator('#reporting-metrics')).toContainText('Win rate');
-  await expect(page.locator('#reporting-metrics')).toContainText('66.7%');
-  await expect(page.locator('#reporting-metrics')).toContainText('Avg GP% on won quotes');
-  await expect(page.locator('#reporting-metrics')).toContainText('67.5%');
-  await expect(page.locator('#reporting-metrics')).toContainText('Avg GP% on lost quotes');
-  await expect(page.locator('#reporting-metrics')).toContainText('48.0%');
-  await expect(page.locator('#reporting-metrics')).toContainText('Quotes by rep');
-  await expect(page.locator('#reporting-metrics')).toContainText('Jack');
-  await expect(page.locator('#reporting-metrics')).toContainText('2');
-
-  // Navy reporting hero band shows existing computed stats (no new queries).
-  const hero = page.locator('.reporting-hero');
-  await expect(hero).toBeVisible();
-  await expect(hero).toContainText('Quotes');
-  await expect(hero).toContainText('Total value');
-  await expect(hero).toContainText('Win rate');
-  await expect(hero.locator('.rh-item')).toHaveCount(4);
-});
-
 test('restyle: active tab gets the gold underline and header brand renders', async ({ page }) => {
   await mockQuotesApi(page);
   await page.goto(appPath);
@@ -281,12 +205,22 @@ test('deletes a quote after confirmation from the saved quotes list', async ({ p
   await page.locator('table.quotes-table tbody tr', { hasText: 'Delete Co' }).locator('button', { hasText: 'Delete' }).click();
 
   await expect(page.locator('#remove-overlay')).toHaveClass(/show/);
-  await expect(page.locator('#remove-overlay')).toContainText('Are you sure you want to delete this quote? This cannot be undone.');
+  await expect(page.locator('#remove-overlay')).toContainText('Delete quote SQ-00000444? It will not re-import.');
   await page.locator('#remove-confirm').click();
 
-  await expect(page.locator('#toast')).toContainText('Quote deleted');
+  await expect(page.locator('#toast')).toContainText('deleted');
   await expect(page.locator('#quotes-container')).toContainText('No quotes found');
-  expect(state.quotes.length).toBe(0);
+  // Soft delete: the record stays in the database with deleted_at stamped...
+  expect(state.quotes.length).toBe(1);
+  expect(state.quotes[0].deleted_at).toBeTruthy();
+  // ...so the sync's existing-quote-numbers check (which does NOT filter deleted)
+  // still sees SQ-00000444 and will not re-import it.
+  const existing = new Set(state.quotes.map(q => q.quote_number));
+  expect(existing.has('SQ-00000444')).toBe(true);
+  // And the list keeps excluding it after a reload (stays gone post-re-sync).
+  await page.locator('button.tab', { hasText: /^Calculator$/ }).click();
+  await page.locator('button.tab', { hasText: 'Saved quotes' }).click();
+  await expect(page.locator('#quotes-container')).toContainText('No quotes found');
 });
 
 test('edits and duplicates an existing quote', async ({ page }) => {
@@ -1119,7 +1053,7 @@ test('saved quotes source filter, Unleashed badge, full quote number, and missin
   const rows = page.locator('.quotes-table tbody tr');
 
   // Full quote number is visible (11 chars, no ellipsis/truncation).
-  const firstQnCell = rows.first().locator('td').first();
+  const firstQnCell = page.locator('.quotes-table tbody tr', { hasText: 'SQ-00000578' }).locator('td').first();
   await expect(firstQnCell).toContainText('SQ-00000578');
   const scrollW = await firstQnCell.evaluate(el => el.scrollWidth);
   const clientW = await firstQnCell.evaluate(el => el.clientWidth);
@@ -1135,20 +1069,91 @@ test('saved quotes source filter, Unleashed badge, full quote number, and missin
   await expect(page.locator('.quotes-table tbody tr', { hasText: 'SQ-00000578' }).locator('.missing-cost-dot')).toHaveCount(0);
   await expect(page.locator('.quotes-table tbody tr', { hasText: 'SQ-00000903' }).locator('.missing-cost-dot')).toHaveCount(0);
 
-  // Source filter — Tool quotes includes null-source legacy rows.
-  await page.locator('#filter-source').selectOption('tool');
+  // Quick quotes toggle — tool quotes, including null-source legacy rows.
+  await page.locator('#filter-src-tool').click();
+  await expect(page.locator('#filter-src-tool')).toHaveClass(/on/);
   await expect(page.locator('#quotes-count')).toContainText('Showing 2 quotes');
   await expect(page.locator('.quotes-table tbody tr', { hasText: 'SQ-00000902' })).toHaveCount(0);
 
-  // Source filter — Unleashed quotes only.
-  await page.locator('#filter-source').selectOption('unleashed');
+  // Switch to the Unleashed toggle only.
+  await page.locator('#filter-src-tool').click(); // off
+  await page.locator('#filter-src-unleashed').click(); // on
+  await expect(page.locator('#filter-src-unleashed')).toHaveClass(/on/);
   await expect(page.locator('#quotes-count')).toContainText('Showing 1 quote');
   await expect(page.locator('.quotes-table tbody tr', { hasText: 'SQ-00000902' })).toHaveCount(1);
 
-  // Clear filters resets the source dropdown.
-  await page.locator('#clear-filters-btn').click();
-  await expect(page.locator('#filter-source')).toHaveValue('');
+  // Both toggles on = show all.
+  await page.locator('#filter-src-tool').click();
   await expect(page.locator('#quotes-count')).toContainText('Showing 3 quotes');
+
+  // Clear filters resets both toggles off.
+  await page.locator('#clear-filters-btn').click();
+  await expect(page.locator('#filter-src-tool')).not.toHaveClass(/on/);
+  await expect(page.locator('#filter-src-unleashed')).not.toHaveClass(/on/);
+  await expect(page.locator('#quotes-count')).toContainText('Showing 3 quotes');
+});
+
+test('saved quotes: search matches quote number with or without the SQ- prefix', async ({ page }) => {
+  const initialQuotes = [
+    { id: 911, business_name: 'Acme Traders', customer: 'Casey', rep: 'Jack', quote_number: 'SQ-00000716', status: 'pending', quote_date: '2026-06-01', freight: 0, freight_in_gp: false, sell_price: 100, gp_percent: 50, line_items: '[]', followups: '[]', created_at: '2026-06-03T00:00:00Z' },
+    { id: 912, business_name: 'Sandy Bay Packaging', customer: 'Drew', rep: 'Sam', quote_number: 'SQ-00000842', status: 'pending', quote_date: '2026-06-02', freight: 0, freight_in_gp: false, sell_price: 200, gp_percent: 40, line_items: '[]', followups: '[]', created_at: '2026-06-02T00:00:00Z' },
+  ];
+  await mockQuotesApi(page, { quotes: initialQuotes });
+
+  await page.goto(appPath);
+  await page.locator('button.tab', { hasText: 'Saved quotes' }).click();
+  await expect(page.locator('#quotes-count')).toContainText('Showing 2 quotes');
+
+  const search = page.locator('#filter-customer');
+  // Full quote number with prefix.
+  await search.fill('SQ-00000716');
+  await expect(page.locator('#quotes-count')).toContainText('Showing 1 quote');
+  await expect(page.locator('.quotes-table')).toContainText('Acme Traders');
+  // Without the prefix.
+  await search.fill('00000716');
+  await expect(page.locator('#quotes-count')).toContainText('Showing 1 quote');
+  await expect(page.locator('.quotes-table')).toContainText('Acme Traders');
+  // Business name still matches.
+  await search.fill('sandy');
+  await expect(page.locator('#quotes-count')).toContainText('Showing 1 quote');
+  await expect(page.locator('.quotes-table')).toContainText('Sandy Bay Packaging');
+  // Contact name still matches.
+  await search.fill('casey');
+  await expect(page.locator('#quotes-count')).toContainText('Showing 1 quote');
+  await expect(page.locator('.quotes-table')).toContainText('Acme Traders');
+});
+
+test('saved quotes: date column sorts newest first by default and click toggles to oldest', async ({ page }) => {
+  const initialQuotes = [
+    { id: 921, business_name: 'Old Co', customer: 'O', rep: 'Jack', quote_number: 'SQ-00000100', status: 'pending', quote_date: '2026-01-05', freight: 0, freight_in_gp: false, sell_price: 100, gp_percent: 50, line_items: '[]', followups: '[]', created_at: '2026-01-05T00:00:00Z' },
+    { id: 922, business_name: 'New Co', customer: 'N', rep: 'Jack', quote_number: 'SQ-00000200', status: 'pending', quote_date: '2026-06-20', freight: 0, freight_in_gp: false, sell_price: 200, gp_percent: 40, line_items: '[]', followups: '[]', created_at: '2026-06-20T00:00:00Z' },
+  ];
+  await mockQuotesApi(page, { quotes: initialQuotes });
+
+  await page.goto(appPath);
+  await page.locator('button.tab', { hasText: 'Saved quotes' }).click();
+
+  // Default: newest first.
+  await expect(page.locator('.quotes-table tbody tr').first()).toContainText('New Co');
+  // Click the Date header → oldest first.
+  await page.locator('.quotes-table th', { hasText: 'Date' }).click();
+  await expect(page.locator('.quotes-table tbody tr').first()).toContainText('Old Co');
+  // Click again → newest first.
+  await page.locator('.quotes-table th', { hasText: 'Date' }).click();
+  await expect(page.locator('.quotes-table tbody tr').first()).toContainText('New Co');
+});
+
+test('removed tabs (Reporting, Follow-up log) no longer render', async ({ page }) => {
+  await mockQuotesApi(page);
+  await page.goto(appPath);
+
+  const tabs = await page.locator('button.tab').allTextContents();
+  expect(tabs).toEqual(['Calculator', 'Landed Cost Calculator', 'Saved quotes']);
+  await expect(page.locator('#tab-reporting')).toHaveCount(0);
+  await expect(page.locator('#followup-log')).toHaveCount(0);
+  await expect(page.locator('#fu-date')).toHaveCount(0);
+  // Internal notes stays on the quote form.
+  await expect(page.locator('#internal-notes')).toHaveCount(1);
 });
 
 test('Ctrl+S saves the quote only while on the Calculator tab', async ({ page }) => {

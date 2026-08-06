@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>QIS Quoting</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f3;color:#1a1a1a;padding:24px;min-height:100vh}
@@ -132,14 +131,6 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
 .feature-hidden{display:none!important}
 .dup-btn{background:none;border:none;cursor:pointer;color:#aaa;font-size:15px;padding:4px 6px;line-height:1}
 .dup-btn:hover,.dup-btn:focus{outline:none;color:#1a1a1a}
-.followup-log{margin-top:0.5rem}
-.followup-entry{background:#f5f5f3;border:1px solid #e8e8e8;border-radius:8px;padding:10px 12px;margin-bottom:8px;font-size:13px;display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
-.followup-entry .fu-left{flex:1}
-.followup-entry .fu-date{font-size:11px;color:#888;margin-bottom:3px}
-.followup-entry .fu-note{color:#1a1a1a}
-.followup-entry .fu-remove{background:none;border:none;cursor:pointer;color:#bbb;font-size:16px;line-height:1;padding:0;flex-shrink:0}
-.followup-entry .fu-remove:hover,.followup-entry .fu-remove:focus{outline:none;color:#E24B4A}
-.followup-add{display:grid;grid-template-columns:140px 1fr auto;gap:8px;align-items:end;margin-top:8px}
 .quotes-table{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed}
 .quotes-table th{text-align:left;padding:5px 6px;font-size:11px;font-weight:500;color:#888;border-bottom:1px solid #e8e8e8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .quotes-table td{padding:5px 6px;border-bottom:1px solid #e8e8e8;color:#1a1a1a;vertical-align:middle;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -160,7 +151,6 @@ input[data-field="order-qty"]{-moz-appearance:textfield;appearance:textfield}
 .status-pill.won{background:#EAF3DE;color:#27500A}
 .status-pill.lost{background:#FCEBEB;color:#791F1F}
 .status-pill.withdrawn{background:#f5f5f3;color:#444}
-.overdue-dot{display:inline-block;width:8px;height:8px;margin-left:6px;border-radius:50%;background:#F59E0B;vertical-align:middle}
 .row-action-btn{font-size:10px;font-weight:500;padding:2px 5px;border-radius:6px;cursor:pointer;border:1px solid #e0e0e0;background:#f5f5f3;color:#1a1a1a;white-space:nowrap;margin-right:2px}
 .row-action-btn:hover{background:#eee}
 .row-action-btn.status-btn{background:#E6F1FB;border-color:#B3D4F5;color:#0C447C}
@@ -416,9 +406,23 @@ body{background:var(--paper);color:var(--ink);font-family:"Avenir Next","Segoe U
 /* Tables — muted small-caps header with ink underline, tabular numbers, right-aligned except first column. */
 .line-table th,.quotes-table th,.compare-table th{color:var(--ink-soft);font-size:11px;letter-spacing:0.09em;text-transform:uppercase;border-bottom:1.5px solid var(--ink)}
 .line-table td,.quotes-table td,.compare-table td{border-bottom-color:var(--line);font-variant-numeric:tabular-nums}
-.quotes-table td,.compare-table td{padding:7px 10px}
+.quotes-table td,.compare-table td{padding:5px 6px}
 .quotes-table th:not(:first-child),.quotes-table td:not(:first-child),.compare-table th:not(:first-child),.compare-table td:not(:first-child){text-align:right}
 .quotes-table tr:hover td{background:var(--paper)}
+/* Column sizing: full date always visible; business/contact get the flexible width
+   and may wrap to two lines; numeric columns stay tight. No horizontal scroll. */
+.quotes-table th:nth-child(2),.quotes-table td:nth-child(2){width:72px;white-space:nowrap;overflow:visible;text-overflow:clip}
+.quotes-table th:nth-child(3),.quotes-table th:nth-child(4){text-align:left}
+.quotes-table td:nth-child(3),.quotes-table td:nth-child(4){white-space:normal;overflow:visible;text-overflow:clip;text-align:left;overflow-wrap:break-word}
+.quotes-table th:nth-child(5),.quotes-table td:nth-child(5){width:58px}
+.quotes-table th:nth-child(6),.quotes-table td:nth-child(6){width:90px}
+.quotes-table th:nth-child(7),.quotes-table td:nth-child(7){width:84px}
+.quotes-table th:nth-child(8),.quotes-table td:nth-child(8){width:56px}
+.quotes-table th:nth-child(9),.quotes-table td:nth-child(9){width:96px;overflow:visible;text-overflow:clip}
+/* Source filter chips — obvious on/off state. */
+.source-toggle{font-size:12px;font-weight:600;padding:6px 14px;border-radius:99px;cursor:pointer;border:1px solid var(--line);background:#fff;color:var(--ink-soft)}
+.source-toggle:hover{border-color:var(--ink)}
+.source-toggle.on{background:var(--ink);border-color:var(--ink);color:#fff}
 .tot-cell,.gp-cell{font-variant-numeric:tabular-nums}
 .tot-cell{text-align:right}
 /* Sliders — gold accent. */
@@ -427,7 +431,6 @@ input[type="range"]{accent-color:var(--accent)}
 /* Badges & dots — consistent with palette. */
 .source-badge{background:var(--accent-soft);border-color:#e2d3b6;color:#8a6414;border-radius:99px;font-weight:600}
 .missing-cost-dot{background:var(--accent)}
-.overdue-dot{background:var(--accent)}
 /* Status chips — pill radius with good/warn/bad pairs. */
 .status-pill{border-radius:99px;font-size:11px;font-weight:600;padding:2px 8px}
 .status-pill.won{background:var(--good-bg);color:var(--good)}
@@ -435,12 +438,6 @@ input[type="range"]{accent-color:var(--accent)}
 .status-pill.pending{background:var(--accent-soft);color:#8a6414}
 .status-pill.withdrawn{background:#eceae4;color:var(--ink-soft)}
 .tag{background:var(--bad-bg);color:var(--bad)}
-/* Reporting hero — dark ink band, light text, large tabular values. */
-.reporting-hero{background:var(--ink);border-radius:6px;padding:20px 22px;margin-bottom:1rem;display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:20px}
-.reporting-hero .rh-item{color:#F7F5F0}
-.reporting-hero .rh-label{font-size:11px;letter-spacing:0.12em;text-transform:uppercase;opacity:0.65;margin-bottom:6px}
-.reporting-hero .rh-value{font-size:26px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.1}
-.reporting-hero .rh-caption{font-size:12.5px;opacity:0.75;margin-top:4px}
 @media screen and (max-width:768px){
   .app-header-inner{gap:10px;padding:0 12px}
   .container{padding:12px 12px 40px}
@@ -460,7 +457,6 @@ input[type="range"]{accent-color:var(--accent)}
   <button class="tab active" onclick="showTab('calculator',this)">Calculator</button>
   <button class="tab" onclick="showTab('landed',this)">Landed Cost Calculator</button>
   <button id="tab-button-quotes" class="tab" onclick="showTab('quotes',this)">Saved quotes</button>
-  <button class="tab" onclick="showTab('reporting',this)">Reporting</button>
 </div>
   </div>
 </div>
@@ -722,14 +718,8 @@ input[type="range"]{accent-color:var(--accent)}
 </div>
 
 <div class="section no-print">
-  <div class="section-title">Follow up log</div>
-  <div id="followup-log"></div>
-  <div class="followup-add">
-    <div class="field"><label for="fu-date">Date</label><input type="date" id="fu-date"></div>
-    <div class="field"><label for="fu-note">Note</label><input type="text" id="fu-note" placeholder="e.g. Left voicemail, following up Friday" onkeydown="if(event.key==='Enter'){event.preventDefault();addFollowup();}"></div>
-    <div class="field"><label>&nbsp;</label><button class="add-btn" onclick="addFollowup()">Add</button></div>
-  </div>
-  <div class="field" style="margin-top:12px"><label for="internal-notes">Internal notes</label><textarea id="internal-notes" placeholder="Enter internal notes for this quote"></textarea></div>
+  <div class="section-title">Internal notes</div>
+  <div class="field"><label for="internal-notes">Internal notes</label><textarea id="internal-notes" placeholder="Enter internal notes for this quote"></textarea></div>
 </div>
 
 <div class="action-row no-print">
@@ -897,21 +887,16 @@ input[type="range"]{accent-color:var(--accent)}
       <option value="amber">30–64% (below target)</option>
       <option value="green">65%+ (on target)</option>
     </select>
-    <select id="filter-source" onchange="loadQuotes()">
-      <option value="">All sources</option>
-      <option value="tool">Tool quotes</option>
-      <option value="unleashed">Unleashed quotes</option>
-    </select>
-    <input type="text" id="filter-customer" placeholder="Search business..." oninput="debounceLoad()" style="width:180px">
+    <button type="button" class="source-toggle" id="filter-src-unleashed" onclick="toggleSourceFilter('unleashed')" aria-pressed="false">Unleashed</button>
+    <button type="button" class="source-toggle" id="filter-src-tool" onclick="toggleSourceFilter('tool')" aria-pressed="false">Quick quotes</button>
+    <input type="text" id="filter-customer" placeholder="Search quote #, business, contact..." oninput="debounceLoad()" style="width:230px">
     <input type="text" id="filter-rep" placeholder="Search rep..." oninput="debounceLoad()" style="width:140px">
     <button class="new-btn" id="clear-filters-btn" onclick="clearQuoteFilters()">Clear filters</button>
   </div>
   <div id="quotes-count" style="font-size:12px;color:#888;margin-bottom:0.5rem"></div>
   <div class="legend" id="quotes-legend" style="justify-content:flex-start;border-top:none;padding:0 0 0.75rem">
-    <div class="legend-item"><span class="overdue-dot" style="margin-left:0"></span><span>Overdue follow-up (pending quote, follow-up date in the past)</span></div>
     <div class="legend-item"><span class="source-badge" style="margin-left:0">UNL</span><span>Imported from Unleashed</span></div>
     <div class="legend-item"><span class="missing-cost-dot" style="margin-left:0"></span><span>One or more lines missing cost — GP not final</span></div>
-    <div class="legend-item"><span>Tab badge — e.g. "Saved quotes (1)" — shows the number of quotes with an overdue follow-up</span></div>
   </div>
   <div id="customer-history-section" class="customer-history" style="display:none">
     <h3 id="customer-history-title">Quote history</h3>
@@ -919,11 +904,6 @@ input[type="range"]{accent-color:var(--accent)}
     <div id="customer-history-notes" class="feature-hidden" style="margin-top:0.75rem"></div>
   </div>
   <div id="quotes-container" class="empty-state">Select a filter or switch to this tab to load quotes</div>
-</div>
-<div id="tab-reporting" class="tab-content">
-  <div id="reporting-content">
-    <div class="empty-state">Select this tab to load report</div>
-  </div>
 </div>
 </div><!-- end container -->
 
@@ -1769,7 +1749,6 @@ const SKEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI
 const H={'Content-Type':'application/json','apikey':SKEY,'Authorization':'Bearer '+SKEY};
 
 let lineItems=[];
-let followups=[];
 let _draggedLineId=null;
 // FIX B4: start lineId at a random large offset so IDs never collide with
 // IDs from a previous session's saved line_items JSON
@@ -1800,6 +1779,12 @@ function fmtDate(s){
   // FIX U4: handle Supabase timestamp strings like "2025-06-03T00:00:00"
   const p=String(s).substring(0,10).split('-');
   return p.length===3?p[2]+'/'+p[1]+'/'+p[0]:s;
+}
+// Compact DD/MM/YY for the saved-quotes table, so the full date always fits.
+function fmtDateShort(s){
+  if(!s)return'';
+  const p=String(s).substring(0,10).split('-');
+  return p.length===3?p[2]+'/'+p[1]+'/'+p[0].substring(2):s;
 }
 function todayISO(){
   // FIX Q8: use local date not UTC — prevents date showing as tomorrow after 10pm AEST
@@ -1835,25 +1820,7 @@ function syncExpiryToQuoteDate(){
   document.getElementById('expiry-date').value=defaultExpiryFor(qd);
 }
 
-function parseFollowups(q){
-  if(!q) return [];
-  const value=q.followups;
-  if(Array.isArray(value)) return value;
-  if(typeof value==='string'){
-    try{return JSON.parse(value||'[]');}catch(e){return[];}
-  }
-  return [];
-}
-function hasOverdueFollowup(q){
-  if((q.status||'')!=='pending')return false;
-  const today=todayISO();
-  return parseFollowups(q).some(f=>f.date&&f.date<today);
-}
-function updateSavedQuotesTabLabel(count){
-  const btn=document.getElementById('tab-button-quotes');
-  if(!btn) return;
-  btn.textContent=count>0?`Saved quotes (${count})`:'Saved quotes';
-}
+
 
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
 
@@ -1862,9 +1829,8 @@ function showTab(name,el){
   document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));
   document.getElementById('tab-'+name).classList.add('active');
   el.classList.add('active');
-  document.querySelector('.container').classList.toggle('wide',name==='landed');
+  document.querySelector('.container').classList.toggle('wide',name==='landed'||name==='quotes');
   if(name==='quotes')loadQuotes();
-  else if(name==='reporting')loadReporting();
 }
 
 // ─── Dialogs ──────────────────────────────────────────────────────────────────
@@ -2390,44 +2356,6 @@ function calcCounterGP(){
   cgpEl.dataset.numericValue=counterTotal>0?cgp.toFixed(2):'';
 }
 
-// ─── Follow-up log ────────────────────────────────────────────────────────────
-
-function addFollowup(){
-  const note=document.getElementById('fu-note').value.trim();
-  if(!note)return;
-  // FIX L11: store null for empty date, not blank string
-  const dateVal=document.getElementById('fu-date').value||null;
-  followups.push({id:Date.now(),date:dateVal,note});
-  document.getElementById('fu-note').value='';
-  // FIX U4: reset date field to today after adding a note
-  document.getElementById('fu-date').value=todayISO();
-  renderFollowups();
-}
-
-function removeFollowup(id){
-  followups=followups.filter(f=>f.id!==id);
-  renderFollowups();
-}
-
-function renderFollowups(){
-  const log=document.getElementById('followup-log');
-  log.innerHTML='';
-  followups.forEach(f=>{
-    const wrap=document.createElement('div');wrap.className='followup-entry';
-    const left=document.createElement('div');left.className='fu-left';
-    const dateEl=document.createElement('div');dateEl.className='fu-date';
-    dateEl.textContent=f.date?fmtDate(f.date):'No date';
-    const noteEl=document.createElement('div');noteEl.className='fu-note';
-    noteEl.textContent=f.note;
-    left.appendChild(dateEl);left.appendChild(noteEl);
-    const btn=document.createElement('button');btn.className='fu-remove';
-    btn.textContent='×';btn.setAttribute('aria-label','Remove note');
-    btn.onclick=()=>removeFollowup(f.id);
-    wrap.appendChild(left);wrap.appendChild(btn);
-    log.appendChild(wrap);
-  });
-}
-
 // ─── Product search ───────────────────────────────────────────────────────────
 
 let _products=[];
@@ -2588,7 +2516,6 @@ function selectProduct(p,itemId){
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
 document.getElementById('quote-date').value=todayISO();
-document.getElementById('fu-date').value=todayISO();
 document.getElementById('expiry-date').value=defaultExpiryFor(todayISO());
 document.getElementById('quote-date').addEventListener('change',syncExpiryToQuoteDate);
 document.getElementById('expiry-date').addEventListener('input',()=>{expiryManuallySet=true;});
@@ -2681,8 +2608,7 @@ async function confirmNewQuote(){
     document.getElementById('customer').value||
     document.getElementById('rep').value||
     document.getElementById('quote-number').value||
-    document.getElementById('status').value||
-    followups.length>0;
+    document.getElementById('status').value;
   if(hasData){
     const ok=await openDialog('newquote-overlay','newquote-confirm','newquote-cancel');
     if(!ok)return;
@@ -2691,8 +2617,8 @@ async function confirmNewQuote(){
 }
 
 function resetForm(){
-  // FIX L2: lineItems and followups reset but lineId never resets
-  lineItems=[];followups=[];sliderDragging=false;_savedOnce=false;_editingId=null;
+  // FIX L2: lineItems reset but lineId never resets
+  lineItems=[];sliderDragging=false;_savedOnce=false;_editingId=null;
   const clearIds=[
     'business-name','customer','phone','email','quote-number',
     'lost-notes','competitor','fu-note','po-number','internal-notes'
@@ -2719,13 +2645,12 @@ function resetForm(){
   document.getElementById('line-warn').className='warn-banner';
   document.getElementById('approval-banner').className='approval-banner';
   document.getElementById('quote-date').value=todayISO();
-  document.getElementById('fu-date').value=todayISO();
   expiryManuallySet=false;
   document.getElementById('expiry-date').value=defaultExpiryFor(todayISO());
   // FIX U8: explicitly re-enable save button on reset
   const sb=document.getElementById('save-btn');
   if(sb){sb.disabled=false;sb.textContent='Save quote';}
-  renderLines();updateSummary();renderFollowups();addLine();
+  renderLines();updateSummary();addLine();
 }
 
 // ─── PDF / Print ──────────────────────────────────────────────────────────────
@@ -2760,14 +2685,13 @@ window.addEventListener('afterprint',()=>document.body.classList.remove('print-i
 function loadQuoteIntoForm(q,editMode=false){
   let lines=[];
   try{lines=JSON.parse(q.line_items||'[]');}catch(e){}
-  let fups=parseFollowups(q);
 
   // Save editingId before resetForm clears it, then restore if in edit mode
   const savedEditingId=_editingId;
   resetForm();
   // FIX C4: restore _editingId after resetForm if editing
   if(editMode) _editingId=savedEditingId;
-  // resetForm already clears lineItems and followups — no need to repeat
+  // resetForm already clears lineItems — no need to repeat
   const r=localStorage.getItem('qis_last_rep');
 
   document.getElementById('business-name').value=q.business_name||'';
@@ -2823,9 +2747,8 @@ function loadQuoteIntoForm(q,editMode=false){
     qty:parseFloat(l.qty)||0,cost:parseFloat(l.cost)||0,sell:parseFloat(l.sell)||0}));
   // FIX B4 partial: advance lineId past any loaded IDs to prevent future collisions
   if(lineItems.length) lineId=Math.max(lineId,...lineItems.map(l=>l.id))+1;
-  followups=fups.map(f=>({...f,id:Date.now()+Math.random()}));
 
-  renderLines();updateSummary();renderFollowups();
+  renderLines();updateSummary();
   if(!editMode) _editingId=null; // duplicate = new quote, not editing existing
   showTab('calculator',document.querySelectorAll('.tab')[0]);
   if(!editMode) showToast('Quote duplicated — enter a new quote number before saving','success');
@@ -2968,8 +2891,6 @@ async function saveQuote(){
   const counterPriceEl=document.getElementById('counter-price');
   const counterPrice=counterPriceEl.value===''?null:parseFloat(counterPriceEl.value);
 
-  // FIX L11: followup dates saved as null not empty string for DB date columns
-  const cleanFollowups=followups.map(f=>({...f,date:f.date||null}));
 
   const btn=document.getElementById('save-btn');
   btn.disabled=true;btn.textContent=_editingId?'Updating...':'Saving...';
@@ -2993,7 +2914,6 @@ async function saveQuote(){
     gp_percent_ex_freight:parseFloat(baseGP.toFixed(2)),
     gross_profit:parseFloat(tG.toFixed(2)),
     line_items:JSON.stringify(validLines),
-    followups:JSON.stringify(cleanFollowups),
     po_number:document.getElementById('po-number').value||null,
     date_won:document.getElementById('date-won').value||null,
     lost_reason:document.getElementById('lost-reason').value||null,
@@ -3060,21 +2980,35 @@ let _debTimer=null;
 function debounceLoad(){clearTimeout(_debTimer);_debTimer=setTimeout(loadQuotes,300);}
 
 let _cachedQuotes=[];
-let reportingChart=null;
 let _editingId=null; // ID of quote currently being edited (null = new quote)
-let _sortField=null;
-let _sortDir=1;
+let _sortField='quote_date';
+let _sortDir=-1; // default: newest first
+
+// Source toggle chips: both off = all; either on = only that source.
+const _sourceFilters={unleashed:false,tool:false};
+
+function toggleSourceFilter(src){
+  _sourceFilters[src]=!_sourceFilters[src];
+  const btn=document.getElementById(src==='unleashed'?'filter-src-unleashed':'filter-src-tool');
+  btn.classList.toggle('on',_sourceFilters[src]);
+  btn.setAttribute('aria-pressed',String(_sourceFilters[src]));
+  loadQuotes();
+}
 
 function clearQuoteFilters(){
   document.getElementById('filter-status').value='';
   document.getElementById('filter-gp').value='';
-  document.getElementById('filter-source').value='';
+  _sourceFilters.unleashed=false;_sourceFilters.tool=false;
+  ['filter-src-unleashed','filter-src-tool'].forEach(id=>{
+    const b=document.getElementById(id);
+    b.classList.remove('on');b.setAttribute('aria-pressed','false');
+  });
   document.getElementById('filter-customer').value='';
   document.getElementById('filter-rep').value='';
   loadQuotes();
 }
 
-const QUOTES_SORT_FIELDS={'Date':'quote_date','Business':'business_name','Total sell':'sell_price','GP%':'gp_percent','Status':'status'};
+const QUOTES_SORT_FIELDS={'Quote #':'quote_number','Date':'quote_date','Business':'business_name','Total sell':'sell_price','GP%':'gp_percent','Status':'status'};
 
 // Source column: null/blank means a quote saved in this tool.
 function quoteSource(q){
@@ -3101,28 +3035,41 @@ function sortQuotesBy(field){
 }
 
 async function loadQuotes(){
-  updateSavedQuotesTabLabel(0);
   const container=document.getElementById('quotes-container');
   container.innerHTML='<div class="empty-state">Loading...</div>';
   const fs=document.getElementById('filter-status').value;
   const fc=document.getElementById('filter-customer').value.toLowerCase().trim();
   const fr=document.getElementById('filter-rep').value.toLowerCase();
   const fg=document.getElementById('filter-gp').value;
-  const fsrc=document.getElementById('filter-source').value;
   try{
     const loadCtrl=new AbortController();
     const loadTimeout=setTimeout(()=>loadCtrl.abort(),15000);
-    const res=await fetch(SURL+'/rest/v1/quotes?order=created_at.desc&limit=200'+(fs?'&status=eq.'+encodeURIComponent(fs):''),{headers:H,signal:loadCtrl.signal});
+    const base=SURL+'/rest/v1/quotes?order=created_at.desc&limit=200'+(fs?'&status=eq.'+encodeURIComponent(fs):'');
+    // Soft-deleted quotes are excluded. If the deleted_at column doesn't exist yet
+    // (migration not run), PostgREST returns 400 — fall back to unfiltered + client filter.
+    let res=await fetch(base+'&deleted_at=is.null',{headers:H,signal:loadCtrl.signal});
+    if(res.status===400) res=await fetch(base,{headers:H,signal:loadCtrl.signal});
     clearTimeout(loadTimeout);
     if(!res.ok){container.innerHTML='<div class="empty-state">Error loading quotes ('+res.status+')</div>';return;}
     let data=await res.json();
+    data=data.filter(q=>!q.deleted_at);
     _cachedQuotes=data;
-    if(fc)data=data.filter(q=>
-      (q.business_name||'').toLowerCase().includes(fc)||
-      (q.customer||'').toLowerCase().includes(fc));
+    // Unified search: quote number (with or without the SQ- prefix), business, contact.
+    if(fc){
+      const term=fc.replace(/^sq-?/,'');
+      data=data.filter(q=>{
+        const qn=(q.quote_number||'').toLowerCase();
+        return qn.includes(fc)||qn.replace(/^sq-?/,'').includes(term)||
+          (q.business_name||'').toLowerCase().includes(fc)||
+          (q.customer||'').toLowerCase().includes(fc);
+      });
+    }
     if(fr)data=data.filter(q=>(q.rep||'').toLowerCase().includes(fr));
-    // Source filter — null/empty source is treated as 'tool'.
-    if(fsrc)data=data.filter(q=>quoteSource(q)===fsrc);
+    // Source toggle chips — both off = all; null/empty source counts as 'tool'.
+    if(_sourceFilters.unleashed!==_sourceFilters.tool){
+      const want=_sourceFilters.unleashed?'unleashed':'tool';
+      data=data.filter(q=>quoteSource(q)===want);
+    }
     // FIX Q8: GP filter uses constants
     if(fg==='red')data=data.filter(q=>(q.gp_percent||0)<GP_RED);
     else if(fg==='amber')data=data.filter(q=>(q.gp_percent||0)>=GP_RED&&(q.gp_percent||0)<GP_AMBER);
@@ -3167,8 +3114,6 @@ async function loadQuotes(){
     });
     thead.appendChild(hrow);table.appendChild(thead);
     const tbody=document.createElement('tbody');
-    const overdueCount=data.filter(hasOverdueFollowup).length;
-    updateSavedQuotesTabLabel(overdueCount);
     data.forEach(q=>{
       const sid=Number(q.id);
       const tr=document.createElement('tr');
@@ -3185,7 +3130,7 @@ async function loadQuotes(){
       }
       tr.appendChild(qnTd);
       const cells=[
-        fmtDate(q.quote_date),
+        fmtDateShort(q.quote_date),
         q.business_name||'',
         q.customer||'',
         q.rep||'',
@@ -3212,12 +3157,6 @@ async function loadQuotes(){
       pill.className='status-pill '+safeStatus;
       pill.textContent=q.status||'';
       statusTd.appendChild(pill);
-      if(hasOverdueFollowup(q)){
-        const dot=document.createElement('span');
-        dot.className='overdue-dot';
-        dot.setAttribute('aria-label','Overdue follow-up');
-        statusTd.appendChild(dot);
-      }
       tr.appendChild(statusTd);
       // Action buttons
       const actionTd=document.createElement('td');actionTd.style.whiteSpace='nowrap';
@@ -3255,211 +3194,6 @@ async function loadQuotes(){
       if(btn.dataset.action==='delete') deleteQuote(id);
     };
     container.addEventListener('click',container._clickHandler);
-  } catch(e){
-    const msg=e.name==='AbortError'?'Request timed out — try again':escHtml(e.message);
-    container.innerHTML='<div class="empty-state">Error: '+msg+'</div>';
-  }
-}
-
-function getQuoteStatusCounts(quotes){
-  const counts={won:0,lost:0,pending:0,withdrawn:0};
-  quotes.forEach(q=>{
-    const status=q.status;
-    if(status==='won'||status==='lost'||status==='pending'||status==='withdrawn')counts[status]++;
-    else counts.pending++;
-  });
-  return counts;
-}
-
-function renderReportingSummary(counts){
-  const summary=document.getElementById('reporting-summary');
-  if(!summary) return;
-  summary.innerHTML='';
-  const defs=[
-    {label:'Won',value:counts.won,color:'#639922'},
-    {label:'Lost',value:counts.lost,color:'#E24B4A'},
-    {label:'Pending',value:counts.pending,color:'#0C447C'},
-    {label:'Withdrawn',value:counts.withdrawn,color:'#444'}
-  ];
-  defs.forEach(item=>{
-    const card=document.createElement('div');
-    card.className='reporting-summary-card';
-    const label=document.createElement('div');
-    label.textContent=item.label;
-    label.style.color='#888';
-    label.style.fontSize='11px';
-    label.style.textTransform='uppercase';
-    label.style.letterSpacing='0.06em';
-    label.style.marginBottom='4px';
-    const value=document.createElement('div');
-    value.textContent=item.value;
-    value.style.fontSize='18px';
-    value.style.fontWeight='600';
-    value.style.color=item.color;
-    card.appendChild(label);
-    card.appendChild(value);
-    summary.appendChild(card);
-  });
-}
-
-function renderReportingChart(counts){
-  const canvas=document.getElementById('reporting-chart');
-  if(!canvas) return;
-  // Don't let a charting-library failure (e.g. blocked CDN) blank the numeric report.
-  if(typeof Chart==='undefined') return;
-  const data=[counts.won,counts.lost,counts.pending,counts.withdrawn];
-  if(reportingChart){
-    reportingChart.data.datasets[0].data=data;
-    reportingChart.update();
-    return;
-  }
-  try{
-    reportingChart=new Chart(canvas,{type:'pie',data:{labels:['Won','Lost','Pending','Withdrawn'],datasets:[{data,backgroundColor:['#639922','#E24B4A','#E6F1FB','#f5f5f3'],borderColor:['#fff','#fff','#fff','#fff'],borderWidth:1}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{boxWidth:12,padding:16}}}}});
-  }catch(e){/* chart is non-essential; summary and metrics still render */}
-}
-
-function renderReportingMetrics(data){
-  const metrics=document.getElementById('reporting-metrics');
-  if(!metrics) return;
-  metrics.innerHTML='';
-
-  const closedCount=data.filter(q=>q.status==='won'||q.status==='lost').length;
-  const wonCount=data.filter(q=>q.status==='won').length;
-  const lostCount=data.filter(q=>q.status==='lost').length;
-  const wonValue=data.filter(q=>q.status==='won').reduce((sum,q)=>sum+(parseFloat(q.sell_price)||0),0);
-  const lostValue=data.filter(q=>q.status==='lost').reduce((sum,q)=>sum+(parseFloat(q.sell_price)||0),0);
-  const wonGP=data.filter(q=>q.status==='won'&&q.gp_percent!=null).reduce((sum,q)=>sum+(q.gp_percent||0),0);
-  const lostGP=data.filter(q=>q.status==='lost'&&q.gp_percent!=null).reduce((sum,q)=>sum+(q.gp_percent||0),0);
-  const wonAvg=wonCount?wonGP/wonCount:NaN;
-  const lostAvg=lostCount?lostGP/lostCount:NaN;
-
-  // Navy summary band at the top of Reporting — dashboard hero, existing stats only.
-  const content=document.getElementById('reporting-content');
-  if(content){
-    const totalValue=data.reduce((sum,q)=>sum+(parseFloat(q.sell_price)||0),0);
-    const heroStats=[
-      {label:'Quotes',value:String(data.length),caption:'in selected period'},
-      {label:'Total value',value:fmtCurrency(totalValue),caption:'all quotes'},
-      {label:'Win rate',value:closedCount?(wonCount/closedCount*100).toFixed(1)+'%':'N/A',caption:wonCount+' won / '+closedCount+' closed'},
-      {label:'Avg GP% (won)',value:wonCount?wonAvg.toFixed(1)+'%':'N/A',caption:'won quotes'}
-    ];
-    const existingHero=content.querySelector('.reporting-hero');
-    if(existingHero) existingHero.remove();
-    const hero=document.createElement('div');
-    hero.className='reporting-hero';
-    heroStats.forEach(s=>{
-      const item=document.createElement('div');
-      item.className='rh-item';
-      const l=document.createElement('div');l.className='rh-label';l.textContent=s.label;
-      const v=document.createElement('div');v.className='rh-value';v.textContent=s.value;
-      const c=document.createElement('div');c.className='rh-caption';c.textContent=s.caption;
-      item.appendChild(l);item.appendChild(v);item.appendChild(c);
-      hero.appendChild(item);
-    });
-    content.insertBefore(hero,content.firstChild);
-  }
-
-  const repCounts={};
-  data.forEach(q=>{
-    const rep=q.rep && String(q.rep).trim();
-    if(rep){
-      repCounts[rep]=(repCounts[rep]||0)+1;
-    }
-  });
-
-  const sections=[
-    {
-      title:'Total value won',
-      value: fmtCurrency(wonValue)
-    },
-    {
-      title:'Total value lost',
-      value: fmtCurrency(lostValue)
-    },
-    {
-      title:'Win rate',
-      value: closedCount ? (wonCount/closedCount*100).toFixed(1)+'%' : 'N/A'
-    },
-    {
-      title:'Avg GP% on won quotes',
-      value: wonCount ? wonAvg.toFixed(1)+'%' : 'N/A'
-    },
-    {
-      title:'Avg GP% on lost quotes',
-      value: lostCount ? lostAvg.toFixed(1)+'%' : 'N/A'
-    }
-  ];
-
-  sections.forEach(section=>{
-    const row=document.createElement('div');
-    row.className='reporting-metric-row';
-    row.style.cssText='padding:8px 0;font-size:13px;border-bottom:1px solid #f0f0f0;color:#1a1a1a';
-    if(section.title==='Avg GP% on lost quotes') row.style.borderBottom='none';
-    row.textContent=section.title+': '+section.value;
-    metrics.appendChild(row);
-  });
-
-  const repSection=document.createElement('div');
-  repSection.className='reporting-reps';
-  repSection.style.cssText='margin-top:1rem';
-  const repTitle=document.createElement('div');
-  repTitle.className='section-title';
-  repTitle.textContent='Quotes by rep';
-  repSection.appendChild(repTitle);
-  const repList=document.createElement('div');
-  repList.style.cssText='display:flex;flex-direction:column;gap:6px';
-  const repEntries=Object.entries(repCounts).sort((a,b)=>b[1]-a[1]);
-  repEntries.forEach(([rep,count])=>{
-    const row=document.createElement('div');
-    row.style.cssText='display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:#f5f5f3;border:1px solid #e8e8e8;border-radius:8px;font-size:13px';
-    const repName=document.createElement('span');
-    repName.textContent=rep;
-    const repCount=document.createElement('strong');
-    repCount.textContent=String(count);
-    row.appendChild(repName);
-    row.appendChild(repCount);
-    repList.appendChild(row);
-  });
-  repSection.appendChild(repList);
-  metrics.appendChild(repSection);
-}
-
-async function loadReporting(){
-  const container=document.getElementById('reporting-content');
-  if(!container) return;
-  container.innerHTML='<div class="empty-state">Loading report...</div>';
-  try{
-    const res=await fetch(SURL+'/rest/v1/quotes?select=status,rep,gp_percent,sell_price',{headers:H});
-    if(!res.ok){container.innerHTML='<div class="empty-state">Error loading report ('+res.status+')</div>';return;}
-    const data=await res.json();
-    const counts=getQuoteStatusCounts(data);
-    container.innerHTML='';
-    const reportSection=document.createElement('div');
-    reportSection.className='section';
-    const title=document.createElement('div');
-    title.className='section-title';
-    title.textContent='Quote status report';
-    reportSection.appendChild(title);
-    const summary=document.createElement('div');
-    summary.id='reporting-summary';
-    summary.className='reporting-summary';
-    reportSection.appendChild(summary);
-    const chartWrapper=document.createElement('div');
-    chartWrapper.className='reporting-chart-wrapper';
-    const canvas=document.createElement('canvas');
-    canvas.id='reporting-chart';
-    canvas.setAttribute('role','img');
-    canvas.setAttribute('aria-label','Quotes status distribution');
-    chartWrapper.appendChild(canvas);
-    reportSection.appendChild(chartWrapper);
-    const metrics=document.createElement('div');
-    metrics.id='reporting-metrics';
-    metrics.style.cssText='margin-top:1rem';
-    reportSection.appendChild(metrics);
-    container.appendChild(reportSection);
-    renderReportingSummary(counts);
-    renderReportingChart(counts);
-    renderReportingMetrics(data);
   } catch(e){
     const msg=e.name==='AbortError'?'Request timed out — try again':escHtml(e.message);
     container.innerHTML='<div class="empty-state">Error: '+msg+'</div>';
@@ -3552,23 +3286,44 @@ function editQuote(id){
 async function deleteQuote(id){
   const q=_cachedQuotes.find(x=>x.id===id);
   if(!q){showToast('Quote not found — reload the list and try again','error');return;}
-  document.getElementById('remove-title').textContent='Delete quote?';
-  document.getElementById('remove-desc').textContent='Are you sure you want to delete this quote? This cannot be undone.';
+  document.getElementById('remove-title').textContent='Delete quote '+(q.quote_number||'')+'?';
+  document.getElementById('remove-desc').textContent='Delete quote '+(q.quote_number||'this quote')+'? It will not re-import.';
   document.getElementById('remove-confirm').textContent='Delete';
   const confirmed=await openDialog('remove-overlay','remove-confirm','remove-cancel');
   if(!confirmed)return;
   try{
     const delCtrl=new AbortController();
     const delTimeout=setTimeout(()=>delCtrl.abort(),15000);
-    const res=await fetch(SURL+'/rest/v1/quotes?id=eq.'+id,{method:'DELETE',headers:H,signal:delCtrl.signal});
+    // Soft delete: stamp deleted_at rather than removing the row, so the Unleashed
+    // sync (insert-only, keyed on quote_number) still sees it and never re-imports.
+    // Prefer:return=representation lets us detect an RLS-blocked update: PostgREST
+    // returns 200 with an EMPTY array when the policy silently matches 0 rows.
+    const res=await fetch(SURL+'/rest/v1/quotes?id=eq.'+id,{
+      method:'PATCH',
+      headers:{...H,'Prefer':'return=representation'},
+      body:JSON.stringify({deleted_at:new Date().toISOString()}),
+      signal:delCtrl.signal
+    });
     clearTimeout(delTimeout);
     if(res.ok){
-      showToast('Quote deleted','success');
+      const rows=await res.json().catch(()=>[]);
+      if(Array.isArray(rows)&&rows.length===0){
+        showToast('Delete blocked by the database: the update matched 0 rows. This usually means a Supabase row-level-security policy is missing UPDATE permission for the anon role on the quotes table.','error');
+        console.error('Soft delete matched 0 rows for quote id',id,'— check RLS policies on quotes (UPDATE for anon).');
+        return;
+      }
+      // Remove the row immediately — no manual refresh needed.
+      _cachedQuotes=_cachedQuotes.filter(x=>x.id!==id);
+      showToast('Quote '+(q.quote_number||'')+' deleted','success');
       loadQuotes();
     } else {
       const txt=await res.text();
-      showToast('Error deleting quote — '+res.status,'error');
-      console.error(res.status,txt);
+      if(res.status===400&&/deleted_at/.test(txt)){
+        showToast('Delete failed: the quotes table has no deleted_at column yet. Run: ALTER TABLE quotes ADD COLUMN deleted_at timestamptz;','error');
+      } else {
+        showToast('Error deleting quote — the database said: '+res.status+' '+txt.substring(0,160),'error');
+      }
+      console.error('Delete failed',res.status,txt);
     }
   } catch(e){
     const msg=e.name==='AbortError'?'Delete request timed out — try again':'Connection error: '+e.message;

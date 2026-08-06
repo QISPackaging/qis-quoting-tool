@@ -282,6 +282,11 @@ def supabase_request(surl, skey, method, path, body=None):
 
 
 def existing_quote_numbers(surl, skey):
+    """Quote numbers already present in Supabase, INCLUDING soft-deleted rows.
+
+    The tool deletes quotes by stamping deleted_at (soft delete) precisely so
+    this insert-only sync still sees them here and never re-imports a quote a
+    rep has deleted. Do NOT add a deleted_at filter to this query."""
     rows = supabase_request(surl, skey, "GET",
                             "/rest/v1/quotes?select=quote_number&limit=10000") or []
     return {r.get("quote_number") for r in rows if r.get("quote_number")}

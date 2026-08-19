@@ -944,22 +944,27 @@ const LANDED_RATE_TABLE = {
   }
 };
 
-// LCL: ocean freight USD per CBM (= minimum), PSS per CBM. WRS/BAF now inclusive.
+// LCL rate card 15–31 Aug 2026: ocean freight USD per CBM (= minimum), PSS now
+// INCLUSIVE in the ocean rate on all routes (pss: 0 — field kept so a future
+// card can reinstate a separate PSS). WRS/BAF inclusive.
 const LANDED_LCL_RATE_TABLE = {
   'LCL': {
-    'New Delhi': { perCbm: 89, pss: 32 },
-    'Karachi': { perCbm: 90, pss: 20 },
-    'Ho Chi Minh': { perCbm: 45, pss: 20 },
-    'Haiphong': { perCbm: 66, pss: 20 },
-    'Keelung': { perCbm: 50, pss: 20 },
-    'Colombo': { perCbm: 82, pss: 20 },
-    'Shanghai': { perCbm: 35, pss: 20 },
-    'Ningbo': { perCbm: 35, pss: 20 },
-    'Semarang': { perCbm: 59, pss: 30 },
-    'Xiamen': { perCbm: 35, pss: 20 },
-    'Qingdao': { perCbm: 35, pss: 20 },
+    'New Delhi': { perCbm: 131, pss: 0 },
+    'Karachi': { perCbm: 121, pss: 0 },
+    'Ho Chi Minh': { perCbm: 63, pss: 0 },
+    'Haiphong': { perCbm: 89, pss: 0 },
+    'Keelung': { perCbm: 85, pss: 0 },
+    'Colombo': { perCbm: 111, pss: 0 },
+    'Shanghai': { perCbm: 56, pss: 0 },
+    'Ningbo': { perCbm: 66, pss: 0 },
+    'Semarang': { perCbm: 91, pss: 0 },
+    'Xiamen': { perCbm: 66, pss: 0 },
+    'Qingdao': { perCbm: 66, pss: 0 },
   }
 };
+
+// LCL domestic fuel levy — applied to Delivery and Temporary Terminal lines.
+const LCL_FUEL_LEVY = 0.35;
 
 const FCL_DESTINATION_CHARGES = {
   OOCL: { portService: { '20ft FCL': 680, '40ft FCL': 925 }, docFee: 160 },
@@ -1042,7 +1047,7 @@ function getFreightBreakdownItems(mode,port,exchangeRate,totalCbm){
     // against line. Item keys are unchanged so saved overrides keep working.
     items.push(
       {key:'oceanFreight',label:'Ocean Freight (USD '+rateData.perCbm+'/CBM × '+cbm.toFixed(2)+' CBM ÷ '+exchangeRate+')',value:round2((rateData.perCbm*cbm)/fx)},
-      {key:'pss',label:'PSS (USD '+pssRate+'/CBM)',value:round2((pssRate*cbm)/fx)},
+      {key:'pss',label:pssRate>0?('PSS (USD '+pssRate+'/CBM)'):'PSS (inclusive in ocean rate)',value:round2((pssRate*cbm)/fx)},
       {key:'portService',label:'Port Service Charges ('+cbm.toFixed(2)+' CBM)',value:round2(LCL_DESTINATION_CHARGES.perCbm.portService*cbm)},
       {key:'terminalHandling',label:'Terminal Handling Charge',value:round2(LCL_DESTINATION_CHARGES.perCbm.terminalHandling*cbm)},
       {key:'portInfrastructure',label:'Port Infrastructure',value:round2(LCL_DESTINATION_CHARGES.perCbm.portInfrastructure*cbm)},
@@ -1052,9 +1057,9 @@ function getFreightBreakdownItems(mode,port,exchangeRate,totalCbm){
       {key:'customsClearance',label:'Customs Clearance',value:LCL_DESTINATION_CHARGES.perCbm.customsClearance},
       {key:'quarantineRegistration',label:'Quarantine Registration Fee',value:LCL_DESTINATION_CHARGES.perCbm.quarantineRegistration},
       {key:'delivery',label:'Delivery — Archerfield (min $90 or $30/CBM)',value:round2(delivery)},
-      {key:'deliveryFuel',label:'Domestic Fuel Levy (25% of Delivery)',value:round2(delivery*0.25)},
+      {key:'deliveryFuel',label:'Domestic Fuel Levy ('+(LCL_FUEL_LEVY*100)+'% of Delivery)',value:round2(delivery*LCL_FUEL_LEVY)},
       {key:'temporaryTerminal',label:'Temporary Terminal F/C (min $18.50 or $5/CBM)',value:round2(temporaryTerminal)},
-      {key:'temporaryFuel',label:'Temporary Terminal Fuel Levy (25%)',value:round2(temporaryTerminal*0.25)}
+      {key:'temporaryFuel',label:'Temporary Terminal Fuel Levy ('+(LCL_FUEL_LEVY*100)+'%)',value:round2(temporaryTerminal*LCL_FUEL_LEVY)}
     );
   } else {
     const rateData=getLandedRateForModePort(mode,port);

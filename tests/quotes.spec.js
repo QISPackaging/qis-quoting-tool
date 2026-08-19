@@ -626,7 +626,7 @@ test('landed cost: LCL freight total includes ocean freight and PSS, both overri
   await page.locator('button.tab', { hasText: 'Landed Cost Calculator' }).click();
 
   await page.locator('#landed-ship-mode').selectOption('LCL');
-  await page.locator('#landed-origin-port').selectOption('Colombo'); // perCbm 82, PSS 20
+  await page.locator('#landed-origin-port').selectOption('Colombo'); // Aug 2026 card: perCbm 111, PSS inclusive
   await page.locator('#landed-exchange-rate').fill('0.6814');
   // totalCbm = 0.5 × 4 = 2 CBM (above the 1 CBM minimum).
   await fillLandedRow(page, 0, { 'usd-price': '5', 'qty-per-carton': '50', 'cbm-per-carton': '0.5', 'cartons': '4' });
@@ -635,13 +635,14 @@ test('landed cost: LCL freight total includes ocean freight and PSS, both overri
   const pss = page.locator('#freight-breakdown-body input[data-breakdown-key="pss"]');
   await expect(ocean).toHaveCount(1);
   await expect(pss).toHaveCount(1);
-  // Ocean = 82 × 2 ÷ 0.6814 = 240.68 ; PSS = 20 × 2 ÷ 0.6814 = 58.70
-  expect(pm(await ocean.inputValue())).toBeCloseTo(240.68, 1);
-  expect(pm(await pss.inputValue())).toBeCloseTo(58.70, 1);
+  // Ocean = 111 × 2 ÷ 0.6814 = 325.80 ; PSS now inclusive in the ocean rate = $0.
+  expect(pm(await ocean.inputValue())).toBeCloseTo(325.80, 1);
+  expect(pm(await pss.inputValue())).toBe(0);
+  await expect(page.locator('#freight-breakdown-body .breakdown-row', { hasText: 'PSS' })).toContainText('inclusive in ocean rate');
 
-  // Exact total = breakdown (incl. ocean + PSS) + Westpac TT deposit ($30).
-  // 240.68+58.70+170+40+50+55+35+85+80+45+90+22.50+18.50+4.63 + 30 = 1025.01
-  expect(await page.locator('#landed-total-charge').inputValue()).toBe('1025.01');
+  // Exact total = breakdown + Westpac TT deposit ($30). Fuel levy now 35%:
+  // 325.80+0+170+40+50+55+35+85+80+45+90+31.50+18.50+6.48 + 30 = 1062.28
+  expect(await page.locator('#landed-total-charge').inputValue()).toBe('1062.28');
 
   // Breakdown lines render in the rate-card order.
   const labels = await page.locator('#freight-breakdown-body .breakdown-row > span').allTextContents();
@@ -661,6 +662,32 @@ test('landed cost: LCL freight total includes ocean freight and PSS, both overri
   await ocean.dispatchEvent('input');
   const after = pm(await page.locator('#landed-total-charge').inputValue());
   expect(after).toBeGreaterThan(before + 9000);
+});
+
+test('landed cost: Aug 2026 LCL card — Qingdao 10 CBM ocean, zero PSS, 35% fuel levy on both lines', async ({ page }) => {
+  await mockQuotesApi(page);
+  await page.goto(appPath);
+  await page.locator('button.tab', { hasText: 'Landed Cost Calculator' }).click();
+
+  await page.locator('#landed-ship-mode').selectOption('LCL');
+  await page.locator('#landed-origin-port').selectOption('Qingdao'); // perCbm 66
+  await page.locator('#landed-exchange-rate').fill('0.6814');
+  // 10 CBM total.
+  await fillLandedRow(page, 0, { 'usd-price': '5', 'qty-per-carton': '50', 'cbm-per-carton': '1', 'cartons': '10' });
+
+  const val = async key => pm(await page.locator(`#freight-breakdown-body input[data-breakdown-key="${key}"]`).inputValue());
+  // Ocean = 66 × 10 ÷ 0.6814 ≈ 968.60
+  expect(await val('oceanFreight')).toBeCloseTo(968.59, 0);
+  expect(await val('pss')).toBe(0);
+  // Delivery = max(90, 30×10) = 300; fuel levy 35% → 105.
+  expect(await val('delivery')).toBeCloseTo(300, 2);
+  expect(await val('deliveryFuel')).toBeCloseTo(105, 2);
+  // Temporary terminal = max(18.5, 5×10) = 50; fuel levy 35% → 17.50.
+  expect(await val('temporaryTerminal')).toBeCloseTo(50, 2);
+  expect(await val('temporaryFuel')).toBeCloseTo(17.5, 2);
+  // Labels state the current levy percentage.
+  await expect(page.locator('#freight-breakdown-body .breakdown-row', { hasText: 'Domestic Fuel Levy' })).toContainText('35% of Delivery');
+  await expect(page.locator('#freight-breakdown-body .breakdown-row', { hasText: 'Temporary Terminal Fuel Levy' })).toContainText('35%');
 });
 
 test('landed cost: single-product LCL solo includes the item\'s own ocean freight', async ({ page }) => {

@@ -299,7 +299,7 @@ test('loads the landed cost calculator and computes landed cost values', async (
   await page.locator('#landed-exchange-rate').fill('0.65');
   await page.locator('#landed-tt-balance-fee').fill('15');
 
-  await expect(page.locator('#landed-ocean-freight')).toHaveValue('1900');
+  await expect(page.locator('#landed-ocean-freight')).toHaveValue('2300');
   await expect(page.locator('#landed-carrier')).toHaveValue('OOCL');
 
   await page.locator('#landed-product-body input[data-field="sku"]').first().fill('SKU-1');
@@ -313,7 +313,7 @@ test('loads the landed cost calculator and computes landed cost values', async (
   await expect(page.locator('#landed-product-body input[data-field="aud-landed-cost-per-bag"]')).not.toHaveValue('');
 });
 
-test('landed cost: rate card (Jul 2026) — ocean freight, carrier, and dropped ports', async ({ page }) => {
+test('landed cost: rate card (Aug 2026) — ocean freight, carrier, and dropped ports', async ({ page }) => {
   await mockQuotesApi(page);
   await page.goto(appPath);
   await page.locator('button.tab', { hasText: 'Landed Cost Calculator' }).click();
@@ -321,12 +321,12 @@ test('landed cost: rate card (Jul 2026) — ocean freight, carrier, and dropped 
 
   // Dual-carrier lane resolves to the named COSCO rate.
   await page.locator('#landed-origin-port').selectOption('Shanghai');
-  await expect(page.locator('#landed-ocean-freight')).toHaveValue('2525');
+  await expect(page.locator('#landed-ocean-freight')).toHaveValue('2550');
   await expect(page.locator('#landed-carrier')).toHaveValue('COSCO');
 
   // 40ft rate for the same lane.
   await page.locator('#landed-ship-mode').selectOption('40ft FCL');
-  await expect(page.locator('#landed-ocean-freight')).toHaveValue('5150');
+  await expect(page.locator('#landed-ocean-freight')).toHaveValue('5100');
 
   // Default exchange rate matches the card.
   await expect(page.locator('#landed-exchange-rate')).toHaveValue('0.6814');

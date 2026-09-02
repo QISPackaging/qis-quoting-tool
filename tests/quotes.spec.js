@@ -319,20 +319,20 @@ test('landed cost: rate card (Sept 2026) — ocean freight, carrier, and new por
   await page.locator('button.tab', { hasText: 'Landed Cost Calculator' }).click();
   await page.locator('#landed-ship-mode').selectOption('20ft FCL');
 
-  // Dual-carrier lane resolves to the cheaper Tier 2 rate.
+  // China lanes book COSCO per QIS practice.
   await page.locator('#landed-origin-port').selectOption('Shanghai');
-  await expect(page.locator('#landed-ocean-freight')).toHaveValue('2650');
-  await expect(page.locator('#landed-carrier')).toHaveValue('Tier 2');
+  await expect(page.locator('#landed-ocean-freight')).toHaveValue('2900');
+  await expect(page.locator('#landed-carrier')).toHaveValue('COSCO');
 
   // 40ft rate for the same lane.
   await page.locator('#landed-ship-mode').selectOption('40ft FCL');
-  await expect(page.locator('#landed-ocean-freight')).toHaveValue('5300');
+  await expect(page.locator('#landed-ocean-freight')).toHaveValue('5800');
 
   // NEW port Shekou is selectable and calculates.
   await page.locator('#landed-ship-mode').selectOption('20ft FCL');
   await page.locator('#landed-origin-port').selectOption('Shekou');
-  await expect(page.locator('#landed-ocean-freight')).toHaveValue('2650');
-  await expect(page.locator('#landed-carrier')).toHaveValue('Tier 2');
+  await expect(page.locator('#landed-ocean-freight')).toHaveValue('2900');
+  await expect(page.locator('#landed-carrier')).toHaveValue('COSCO');
 
   // Default exchange rate matches the card.
   await expect(page.locator('#landed-exchange-rate')).toHaveValue('0.6814');
@@ -626,7 +626,7 @@ test('landed cost: FCL solo landed/bag equals full freight ÷ item cartons', asy
   expect(Math.abs(solo - expected)).toBeLessThan(0.001);
 });
 
-test('landed cost: Sept 2026 FCL — Xiamen 40ft total (Tier 2 charges) and Colombo surrender fee', async ({ page }) => {
+test('landed cost: Sept 2026 FCL — Xiamen 40ft total (COSCO charges) and Colombo surrender fee', async ({ page }) => {
   await mockQuotesApi(page);
   await page.goto(appPath);
   await page.locator('button.tab', { hasText: 'Landed Cost Calculator' }).click();
@@ -634,12 +634,12 @@ test('landed cost: Sept 2026 FCL — Xiamen 40ft total (Tier 2 charges) and Colo
   await page.locator('#landed-ship-mode').selectOption('40ft FCL');
   await page.locator('#landed-origin-port').selectOption('Xiamen');
   await page.locator('#landed-exchange-rate').fill('0.6814');
-  // Ocean 5100/0.6814=7484.59 + port service 1025 + doc 165 + DO 50 + cargo 85 + EDI 30
+  // Ocean 5800/0.6814=8511.89 + port service 925 + doc 160 + DO 50 + cargo 85 + EDI 30
   // + customs 80 + quarantine 45 + cartage 435 + fuel 35% 152.25 + slot 320 + PIL 285
-  // + tolls 25 + TT deposit 30 = 10211.84
-  await expect(page.locator('#landed-total-charge')).toHaveValue('10211.84');
+  // + tolls 25 + TT deposit 30 = 11134.14
+  await expect(page.locator('#landed-total-charge')).toHaveValue('11134.14');
   const ps = page.locator('#freight-breakdown-body input[data-breakdown-key="portService"]');
-  expect(parseFloat(await ps.inputValue())).toBe(1025);
+  expect(parseFloat(await ps.inputValue())).toBe(925);
 
   // Surrender fee: Colombo only.
   await expect(page.locator('#freight-breakdown-body input[data-breakdown-key="surrenderFee"]')).toHaveCount(0);

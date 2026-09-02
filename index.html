@@ -915,34 +915,34 @@ input[type="range"]{accent-color:var(--accent)}
 const GP_RED=30;    // below this: needs approval
 const GP_AMBER=65;  // below this: below target; at or above: on target
 
-// Rate card: 1st – 14th Sept 2026 (Cyclone Global Logistics). Dual-carrier lanes
-// use the cheaper Tier 2 rate; COSCO premium option exists at 2900/5800 on China lanes.
+// Rate card: 1st – 14th Sept 2026 (Cyclone Global Logistics). China lanes use
+// COSCO per QIS booking practice; Tier 2 alternative exists at 2550-2650/5100-5300.
 const LANDED_RATE_TABLE = {
   '20ft FCL': {
     'Colombo': { rate: 2325, carrier: 'OOCL' },
     'Haiphong': { rate: 1500, carrier: 'ANL' },
     'Ho Chi Minh': { rate: 2450, carrier: 'COSCO' },
     'Karachi': { rate: 2350, carrier: 'OOCL' },
-    'Qingdao': { rate: 2550, carrier: 'Tier 2' },
+    'Qingdao': { rate: 2900, carrier: 'COSCO' },
     'Semarang': { rate: 1500, carrier: 'ANL' },
-    'Shanghai': { rate: 2650, carrier: 'Tier 2' },
-    'Shekou': { rate: 2650, carrier: 'Tier 2' },
-    'Xiamen': { rate: 2550, carrier: 'Tier 2' },
-    'Yantian': { rate: 2550, carrier: 'ZIM' },
-    'Ningbo': { rate: 2550, carrier: 'Tier 2' },
+    'Shanghai': { rate: 2900, carrier: 'COSCO' },
+    'Shekou': { rate: 2900, carrier: 'COSCO' },
+    'Xiamen': { rate: 2900, carrier: 'COSCO' },
+    'Yantian': { rate: 2750, carrier: 'HMM' },
+    'Ningbo': { rate: 2900, carrier: 'COSCO' },
   },
   '40ft FCL': {
     'Colombo': { rate: 4650, carrier: 'OOCL' },
     'Haiphong': { rate: 3000, carrier: 'ANL' },
     'Ho Chi Minh': { rate: 4900, carrier: 'COSCO' },
     'Karachi': { rate: 4700, carrier: 'OOCL' },
-    'Qingdao': { rate: 5100, carrier: 'Tier 2' },
+    'Qingdao': { rate: 5800, carrier: 'COSCO' },
     'Semarang': { rate: 3000, carrier: 'ANL' },
-    'Shanghai': { rate: 5300, carrier: 'Tier 2' },
-    'Shekou': { rate: 5300, carrier: 'Tier 2' },
-    'Xiamen': { rate: 5100, carrier: 'Tier 2' },
-    'Yantian': { rate: 5100, carrier: 'ZIM' },
-    'Ningbo': { rate: 5100, carrier: 'Tier 2' },
+    'Shanghai': { rate: 5800, carrier: 'COSCO' },
+    'Shekou': { rate: 5800, carrier: 'COSCO' },
+    'Xiamen': { rate: 5800, carrier: 'COSCO' },
+    'Yantian': { rate: 5500, carrier: 'HMM' },
+    'Ningbo': { rate: 5800, carrier: 'COSCO' },
   }
 };
 
@@ -978,8 +978,7 @@ const FCL_DESTINATION_CHARGES = {
   TSL: { portService: { '20ft FCL': 745, '40ft FCL': 1025 }, docFee: 165 },
   HMM: { portService: { '20ft FCL': 680, '40ft FCL': 925 }, docFee: 160 },
   YML: { portService: { '20ft FCL': 680, '40ft FCL': 925 }, docFee: 160 },
-  // Conservative assumption pending forwarder confirmation of carrier grouping:
-  'Tier 2': { portService: { '20ft FCL': 745, '40ft FCL': 1025 }, docFee: 165 },
+  // Conservative assumption pending forwarder confirmation of ANL's carrier group:
   ANL: { portService: { '20ft FCL': 745, '40ft FCL': 1025 }, docFee: 165 },
 };
 

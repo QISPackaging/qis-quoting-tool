@@ -275,6 +275,48 @@ test('supports product search auto-fill for line items', async ({ page }) => {
   await expect(page.locator('#line-items-body input[data-field="sell"]').first()).not.toHaveValue('');
 });
 
+test('product search ranks exact SKU first, then prefix, then substring, then description', async ({ page }) => {
+  await mockQuotesApi(page);
+  // Controlled catalogue: 12+ substring matches would otherwise crowd out the exact SKU.
+  const products = [
+    { sku: 'ASMLBR1', desc: 'Variant 1', cost: 1, sell: 2 },
+    { sku: 'BSMLBR', desc: 'Variant B', cost: 1, sell: 2 },
+    { sku: 'BXSMLBR', desc: 'Variant BX', cost: 1, sell: 2 },
+    { sku: 'CSMLBR', desc: 'Variant C', cost: 1, sell: 2 },
+    { sku: 'DBSMLBR', desc: 'Variant DB', cost: 1, sell: 2 },
+    { sku: 'ESMLBR', desc: 'Variant E', cost: 1, sell: 2 },
+    { sku: 'FSMLBR', desc: 'Variant F', cost: 1, sell: 2 },
+    { sku: 'GSMLBR', desc: 'Variant G', cost: 1, sell: 2 },
+    { sku: 'HSMLBR', desc: 'Variant H', cost: 1, sell: 2 },
+    { sku: 'ISMLBR', desc: 'Variant I', cost: 1, sell: 2 },
+    { sku: 'JSMLBR', desc: 'Variant J', cost: 1, sell: 2 },
+    { sku: 'KSMLBR', desc: 'Variant K', cost: 1, sell: 2 },
+    { sku: 'LSMLBR', desc: 'Variant L', cost: 1, sell: 2 },
+    { sku: 'SMLBR', desc: 'Small Brown Bag', cost: 1, sell: 2 },
+    { sku: 'SMLBRX', desc: 'Small Brown Bag XL', cost: 1, sell: 2 },
+    { sku: 'ZOTHER', desc: 'Totally different smlbr mention', cost: 1, sell: 2 },
+  ];
+  await page.route('**/qis_products.json', route =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(products) }));
+
+  await page.goto(appPath);
+  const skuInput = page.locator('#line-items-body input[data-field="sku"]').first();
+
+  // Exact SKU always ranks first, prefix match second, despite 12+ substring matches.
+  await skuInput.fill('SMLBR');
+  await expect(page.locator('.product-dropdown')).toHaveClass(/show/);
+  await expect(page.locator('.product-dropdown .pd-item .pd-sku').first()).toHaveText('SMLBR');
+  await expect(page.locator('.product-dropdown .pd-item .pd-sku').nth(1)).toHaveText('SMLBRX');
+
+  // Exact match on a longer SKU ranks it first too.
+  await skuInput.fill('BSMLBR');
+  await expect(page.locator('.product-dropdown .pd-item .pd-sku').first()).toHaveText('BSMLBR');
+
+  // Description-only search still works.
+  await skuInput.fill('different');
+  await expect(page.locator('.product-dropdown .pd-item .pd-sku').first()).toHaveText('ZOTHER');
+});
+
 test('calculates GP and totals correctly for line items', async ({ page }) => {
   await mockQuotesApi(page);
 

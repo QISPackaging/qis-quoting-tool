@@ -2390,12 +2390,25 @@ async function loadProducts(){
 function searchProducts(query){
   if(!query||query.length<2)return[];
   const q=query.toLowerCase();
+  // Rank before capping so an exact SKU is never crowded out by substring matches:
+  // 1 exact SKU, 2 SKU starts-with, 3 SKU contains, 4 description contains.
+  // Stable sort keeps file order within each tier.
+  const tier=p=>{
+    const sku=p.sku.toLowerCase();
+    if(sku===q)return 1;
+    if(sku.startsWith(q))return 2;
+    if(sku.includes(q))return 3;
+    return 4; // description match (only ranked items pass the filter below)
+  };
   return _products.filter(p=>
     (p.cost>0||p.sell>0)&&(
       p.sku.toLowerCase().includes(q)||
       p.desc.toLowerCase().includes(q)
     )
-  ).slice(0,12);
+  ).map((p,i)=>({p,i,t:tier(p)}))
+   .sort((a,b)=>a.t-b.t||a.i-b.i)
+   .map(x=>x.p)
+   .slice(0,12);
 }
 
 function showProductDropdown(inp,itemId,query){

@@ -475,6 +475,19 @@ input[type="range"]{accent-color:var(--accent)}
 </div>
 
 <!-- New quote confirm dialog -->
+<!-- Send-to-quote cost basis dialog -->
+<div class="overlay no-print" id="basis-overlay" role="dialog" aria-modal="true" aria-labelledby="basis-title">
+  <div class="dialog-box wide">
+    <h3 id="basis-title">Which landed cost should this quote use?</h3>
+    <p>Bundled shares this shipment's freight across all items. Solo prices each item as if it shipped alone (it carries the full charges).</p>
+    <div class="dialog-btns" style="justify-content:flex-start;flex-wrap:wrap;gap:8px">
+      <button class="btn-confirm" id="basis-bundled">Bundled — items share this shipment's freight</button>
+      <button class="btn-confirm" id="basis-solo">Solo — each item priced as if shipped alone</button>
+      <button class="btn-cancel" id="basis-cancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <div class="overlay no-print" id="newquote-overlay" role="dialog" aria-modal="true" aria-labelledby="newquote-title">
   <div class="dialog-box">
     <h3 id="newquote-title">Start a new quote?</h3>
@@ -1728,7 +1741,30 @@ function toggleCompareShipments(){
   panel.appendChild(table);
 }
 
-function sendLandedToQuote(){
+// Three-way basis dialog: resolves 'bundled' | 'solo' | null (cancelled).
+function chooseLandedBasis(){
+  return new Promise(resolve=>{
+    const overlay=document.getElementById('basis-overlay');
+    overlay.classList.add('show');
+    document.getElementById('basis-bundled').focus();
+    const pick=v=>()=>{cleanup();resolve(v);};
+    const onBundled=pick('bundled'),onSolo=pick('solo'),onCancel=pick(null);
+    const onKey=e=>{if(e.key==='Escape'){cleanup();resolve(null);}};
+    function cleanup(){
+      document.getElementById('basis-bundled').removeEventListener('click',onBundled);
+      document.getElementById('basis-solo').removeEventListener('click',onSolo);
+      document.getElementById('basis-cancel').removeEventListener('click',onCancel);
+      document.removeEventListener('keydown',onKey);
+      overlay.classList.remove('show');
+    }
+    document.getElementById('basis-bundled').addEventListener('click',onBundled);
+    document.getElementById('basis-solo').addEventListener('click',onSolo);
+    document.getElementById('basis-cancel').addEventListener('click',onCancel);
+    document.addEventListener('keydown',onKey);
+  });
+}
+
+async function sendLandedToQuote(){
   const rows=document.querySelectorAll('#landed-product-body tr.landed-product-row');
   const validRows=Array.from(rows).filter(row=>{
     const sku=row.querySelector('[data-field="sku"]').value.trim();
@@ -1738,20 +1774,36 @@ function sendLandedToQuote(){
   });
   if(!validRows.length){showToast('Please add at least one landed cost product','error');return;}
 
+  const bagOf=(row,field)=>parseMoney(row.querySelector('[data-field="'+field+'"]').value.replace(/[^0-9.-]/g,''));
+
+  // One product with solo == bundled to the cent: no pointless question.
+  let basis='bundled';
+  const soloSameAsBundled=validRows.length===1&&
+    Math.round(bagOf(validRows[0],'aud-landed-cost-per-bag')*100)===Math.round(bagOf(validRows[0],'aud-landed-cost-per-bag-solo')*100);
+  if(!soloSameAsBundled){
+    basis=await chooseLandedBasis();
+    if(basis===null)return; // cancelled — send nothing
+  }
+
   lineItems=[];
+  const costField=basis==='solo'?'aud-landed-cost-per-bag-solo':'aud-landed-cost-per-bag';
   validRows.forEach(row=>{
     const sku=row.querySelector('[data-field="sku"]').value.trim();
     const desc=row.querySelector('[data-field="desc"]').value.trim();
-    const landedPerBag=parseMoney(row.querySelector('[data-field="aud-landed-cost-per-bag"]').value.replace(/[^0-9.-]/g,''));
+    const landedPerBag=bagOf(row,costField);
     const qtyPerCarton=parseFloat(row.querySelector('[data-field="qty-per-carton"]').value)||0;
     const cartons=parseFloat(row.querySelector('[data-field="cartons"]').value)||0;
     const qty=qtyPerCarton>0&&cartons>0?qtyPerCarton*cartons:0;
     lineItems.push({id:lineId++,sku,desc,qty,cost:landedPerBag,sell:0});
   });
+  // Auditable record of which landed figure was used as the cost basis.
+  const basisNote='Cost basis: '+(basis==='solo'?'solo landed (each item priced as if shipped alone)':'bundled landed (items share shipment freight)');
+  const notesEl=document.getElementById('internal-notes');
+  if(!notesEl.value.includes('Cost basis:')) notesEl.value=(notesEl.value?notesEl.value+'\n':'')+basisNote;
   renderLines();
   updateSummary();
   showTab('calculator',document.querySelectorAll('.tab')[0]);
-  showToast('Landed cost lines added to calculator','success');
+  showToast('Landed cost lines added to calculator ('+(basis==='solo'?'solo':'bundled')+' basis)','success');
 }
 
 // ─── Database config (Supabase) ───────────────────────────────────────────────

@@ -408,11 +408,66 @@ test('sends landed cost lines into the calculator as cost prices', async ({ page
   await page.locator('#landed-product-body input[data-field="cartons"]').first().fill('2');
 
   await page.locator('#send-to-quote-btn').click();
+  // FCL single row: solo differs from bundled, so the basis dialog appears.
+  await expect(page.locator('#basis-overlay')).toHaveClass(/show/);
+  await page.locator('#basis-bundled').click();
 
   await expect(page.locator('button.tab').filter({ hasText: /^Calculator$/ })).toHaveClass(/active/);
   await expect(page.locator('#line-items-body input[data-field="sku"]').first()).toHaveValue('SKU-1');
   await expect(page.locator('#line-items-body input[data-field="desc"]').first()).toHaveValue('Test bag');
   await expect(page.locator('#line-items-body input[data-field="cost"]').first()).not.toHaveValue('');
+  await expect(page.locator('#internal-notes')).toHaveValue(/Cost basis: bundled landed/);
+});
+
+test('send to quote: Solo basis sends solo landed/bag; Cancel sends nothing; single-row LCL skips the modal', async ({ page }) => {
+  const pmv = v => parseFloat(String(v).replace(/[^0-9.-]/g, '')) || 0;
+  await mockQuotesApi(page);
+  await page.goto(appPath);
+  await page.locator('button.tab', { hasText: 'Landed Cost Calculator' }).click();
+
+  // Multi-row LCL shipment where solo != bundled.
+  await page.locator('#landed-ship-mode').selectOption('LCL');
+  await page.locator('#landed-origin-port').selectOption('Colombo');
+  await page.locator('#landed-exchange-rate').fill('0.6814');
+  await fillLandedRow(page, 0, { 'sku': 'BIG', 'usd-price': '5', 'qty-per-carton': '20', 'cbm-per-carton': '1', 'cartons': '20' });
+  await page.locator('#add-landed-btn').click();
+  await fillLandedRow(page, 1, { 'sku': 'SMALL', 'usd-price': '5', 'qty-per-carton': '20', 'cbm-per-carton': '0.01', 'cartons': '1' });
+
+  const soloSmall = pmv(await page.locator('#landed-product-body input[data-field="aud-landed-cost-per-bag-solo"]').nth(1).inputValue());
+  const bundledSmall = pmv(await page.locator('#landed-product-body input[data-field="aud-landed-cost-per-bag"]').nth(1).inputValue());
+  expect(soloSmall).not.toBe(bundledSmall);
+
+  // Cancel sends nothing and stays on the landed tab.
+  await page.locator('#send-to-quote-btn').click();
+  await expect(page.locator('#basis-overlay')).toHaveClass(/show/);
+  await page.locator('#basis-cancel').click();
+  await expect(page.locator('button.tab').filter({ hasText: 'Landed Cost Calculator' })).toHaveClass(/active/);
+  await expect(page.locator('#line-items-body input[data-field="sku"]').first()).toHaveValue('');
+
+  // Solo populates the quote with the solo figures.
+  await page.locator('#send-to-quote-btn').click();
+  await page.locator('#basis-solo').click();
+  await expect(page.locator('button.tab').filter({ hasText: /^Calculator$/ })).toHaveClass(/active/);
+  const smallRowCost = pmv(await page.locator('#line-items-body input[data-field="cost"]').nth(1).inputValue());
+  expect(Math.abs(smallRowCost - soloSmall)).toBeLessThan(0.005);
+  await expect(page.locator('#internal-notes')).toHaveValue(/Cost basis: solo landed/);
+});
+
+test('send to quote: single-row LCL shipment (solo == bundled) skips the basis modal', async ({ page }) => {
+  await mockQuotesApi(page);
+  await page.goto(appPath);
+  await page.locator('button.tab', { hasText: 'Landed Cost Calculator' }).click();
+
+  await page.locator('#landed-ship-mode').selectOption('LCL');
+  await page.locator('#landed-origin-port').selectOption('Colombo');
+  await page.locator('#landed-exchange-rate').fill('0.6814');
+  // Single LCL item: solo equals bundled to the cent, so no dialog.
+  await fillLandedRow(page, 0, { 'sku': 'ONLY', 'usd-price': '5', 'qty-per-carton': '10', 'cbm-per-carton': '0.5', 'cartons': '4' });
+
+  await page.locator('#send-to-quote-btn').click();
+  await expect(page.locator('#basis-overlay')).not.toHaveClass(/show/);
+  await expect(page.locator('button.tab').filter({ hasText: /^Calculator$/ })).toHaveClass(/active/);
+  await expect(page.locator('#line-items-body input[data-field="sku"]').first()).toHaveValue('ONLY');
 });
 
 test('landed cost: per-unit costs show 4 decimals, order money stays 2 decimals', async ({ page }) => {
@@ -444,6 +499,7 @@ test('landed cost: per-unit costs show 4 decimals, order money stays 2 decimals'
   // Send to Quote passes the 4-decimal landed/bag value into the cost field.
   const bagVal = parseFloat((await page.locator('#landed-product-body input[data-field="aud-landed-cost-per-bag"]').first().inputValue()).replace(/[^0-9.]/g, ''));
   await page.locator('#send-to-quote-btn').click();
+  await page.locator('#basis-bundled').click(); // FCL single row: solo != bundled, dialog appears
   const cost = parseFloat(await page.locator('#line-items-body input[data-field="cost"]').first().inputValue());
   expect(Math.abs(cost - bagVal)).toBeLessThan(0.00005);
 });

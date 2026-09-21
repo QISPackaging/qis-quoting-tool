@@ -5,6 +5,12 @@ quoting tool's Supabase database so they appear in the Saved Quotes tab.
 Design (v1 - deliberately conservative):
   - INSERT-ONLY. Quotes already in Supabase (matched by quote_number) are never
     touched, so costs/notes/follow-ups added by reps are never overwritten.
+  - ROLLING WINDOW: each run asks the connector only for quotes modified in the
+    last WINDOW_DAYS days (Brisbane dates), so the 15-minute runs stay light and
+    the Cloudflare Worker doesn't time out on a full-history pull. The overlap
+    between runs is harmless because of the insert-only dedupe. Set FULL_SYNC=1
+    (env var or --full-sync flag) for a manual catch-up run using the old full
+    since-SYNC_FROM query.
   - Only quotes dated on/after SYNC_FROM (default below) are imported.
   - Costs are filled from qis_products.json (kept fresh by the product sync).
     Unknown SKUs get cost 0 and are listed in the quote's notes for the rep.
@@ -18,6 +24,7 @@ Credentials:
 import json
 import os
 import re
+import sys
 import time
 import urllib.error
 import urllib.request
@@ -27,7 +34,10 @@ INDEX_HTML = os.path.join(HERE, "..", "index.html")
 PRODUCTS_JSON = os.path.join(HERE, "..", "qis_products.json")
 
 SYNC_FROM = os.environ.get("SYNC_QUOTES_FROM", "2026-07-03")  # only import quotes on/after this date
+WINDOW_DAYS = int(os.environ.get("SYNC_WINDOW_DAYS", "10"))  # rolling modified-since window
+PAGE_SIZE = 100  # small pages keep each connector call light
 MAX_INSERTS_PER_RUN = 300  # safety cap
+RETRY_SLEEPS = (5, 15)  # backoff between the up-to-3 attempts per connector request
 REPS = ["Allegra", "Jack", "Liam", "Luke", "Maddy", "Rick", "Will"]
 
 STATUS_MAP = {
@@ -59,7 +69,8 @@ def _post(url, payload):
         headers["mcp-session-id"] = _session_id
     req = urllib.request.Request(url, data=json.dumps(payload).encode(), headers=headers)
     last_err = None
-    for attempt in range(3):
+    attempts = 1 + len(RETRY_SLEEPS)  # 3 attempts: 0s, then 5s, then 15s backoff
+    for attempt in range(attempts):
         try:
             with urllib.request.urlopen(req, timeout=120) as resp:
                 body = resp.read().decode()
@@ -71,11 +82,26 @@ def _post(url, payload):
                 return json.loads(body), resp.headers
         except urllib.error.HTTPError as e:
             detail = e.read().decode(errors="replace")[:500]
+            # 5xx (incl. Cloudflare 1101-wrapped 500s) is transient - retry with backoff.
+            if e.code >= 500 and attempt < attempts - 1:
+                wait = RETRY_SLEEPS[attempt]
+                print("Connector HTTP %d (attempt %d/%d) -- retrying in %ds: %s"
+                      % (e.code, attempt + 1, attempts, wait, detail[:160]))
+                last_err = e
+                time.sleep(wait)
+                continue
             raise SystemExit("Connector returned HTTP %d: %s" % (e.code, detail))
         except Exception as e:
+            # Timeouts / connection resets - retry with backoff.
+            if attempt < attempts - 1:
+                wait = RETRY_SLEEPS[attempt]
+                print("Connector request failed (attempt %d/%d) -- retrying in %ds: %s"
+                      % (attempt + 1, attempts, wait, e))
+                last_err = e
+                time.sleep(wait)
+                continue
             last_err = e
-            time.sleep(5 * (attempt + 1))
-    raise SystemExit("Request failed after retries: %s" % last_err)
+    raise SystemExit("Request failed after %d attempts: %s" % (attempts, last_err))
 
 
 def _parse_sse(body):
@@ -142,6 +168,13 @@ def call_tool(url, name, arguments):
 # ---------- Unleashed helpers ----------
 
 BRISBANE_OFFSET_SECONDS = 10 * 3600  # AEST, UTC+10 - Queensland has no daylight saving
+
+
+def brisbane_date_days_ago(days):
+    """Brisbane (UTC+10) calendar date `days` days ago, as YYYY-MM-DD -
+    consistent with parse_unleashed_date's timezone handling."""
+    t = time.gmtime(time.time() + BRISBANE_OFFSET_SECONDS - days * 86400)
+    return "%04d-%02d-%02d" % (t.tm_year, t.tm_mon, t.tm_mday)
 
 
 def parse_unleashed_date(value):
@@ -294,15 +327,29 @@ def existing_quote_numbers(surl, skey):
 
 # ---------- main ----------
 
-def fetch_quotes(url):
+def fetch_quotes(url, full_sync):
     """Fetch quotes via the connector's list_quotes tool (service token).
 
-    Tries with a startDate filter first; if the deployed tool doesn't accept
-    that argument, falls back to unfiltered paging - the client-side date
-    check in main() keeps only quotes on/after SYNC_FROM either way."""
-    for args_base in ({"startDate": SYNC_FROM, "pageSize": 200},
-                      {"pageSize": 200},
-                      {}):
+    Normal runs use a rolling modified-since window (last WINDOW_DAYS days,
+    Brisbane dates) so each 15-minute run stays light; FULL_SYNC runs use the
+    old full since-SYNC_FROM query for manual catch-up. If the deployed tool
+    doesn't accept an argument, falls back to simpler combinations - the
+    client-side date check in main() keeps only quotes on/after SYNC_FROM
+    either way, and insert-only dedupe makes any overlap harmless."""
+    if full_sync:
+        window_desc = "FULL SYNC: all quotes since %s" % SYNC_FROM
+        arg_combos = ({"startDate": SYNC_FROM, "pageSize": PAGE_SIZE},
+                      {"pageSize": PAGE_SIZE},
+                      {})
+    else:
+        since = brisbane_date_days_ago(WINDOW_DAYS)
+        window_desc = "rolling window: quotes modified since %s (last %d days)" % (since, WINDOW_DAYS)
+        arg_combos = ({"modifiedSince": since, "pageSize": PAGE_SIZE},
+                      {"startDate": since, "pageSize": PAGE_SIZE},
+                      {"pageSize": PAGE_SIZE},
+                      {})
+    print("Query window - %s; page size %d" % (window_desc, PAGE_SIZE))
+    for args_base in arg_combos:
         all_items, page = [], 1
         bad_args = False
         while True:
@@ -325,6 +372,7 @@ def fetch_quotes(url):
             page += 1
             time.sleep(3)
         if not bad_args:
+            print("Fetch complete: %d page(s), %d quote(s) seen with args %s" % (page, len(all_items), args_base))
             return all_items
     raise SystemExit("list_quotes rejected every argument combination - ask Liam what "
                      "parameters his list_quotes tool accepts.")
@@ -349,6 +397,8 @@ def main():
     if not url:
         raise SystemExit("Missing UNLEASHED_CONNECTOR_URL environment variable.")
 
+    full_sync = os.environ.get("FULL_SYNC", "") == "1" or "--full-sync" in sys.argv[1:]
+
     surl, skey = read_supabase_creds()
     cost_lookup = {p["sku"]: p.get("cost", 0.0) for p in json.load(open(PRODUCTS_JSON))}
     print("Loaded %d product costs; syncing quotes dated on/after %s" % (len(cost_lookup), SYNC_FROM))
@@ -360,7 +410,7 @@ def main():
     })
     rpc(url, "notifications/initialized", {}, is_notification=True)
 
-    quotes = fetch_quotes(url)
+    quotes = fetch_quotes(url, full_sync)
     print("Unleashed returned %d quotes" % len(quotes))
 
     existing = existing_quote_numbers(surl, skey)

@@ -341,10 +341,9 @@ test('loads the landed cost calculator and computes landed cost values', async (
   await page.locator('#landed-exchange-rate').fill('0.65');
   await page.locator('#landed-tt-balance-fee').fill('15');
 
-  await expect(page.locator('#landed-ocean-freight')).toHaveValue('2325');
+  await expect(page.locator('#landed-ocean-freight')).toHaveValue('2650');
   await expect(page.locator('#landed-carrier')).toHaveValue('OOCL');
 
-  await page.locator('#landed-product-body input[data-field="sku"]').first().fill('SKU-1');
   await page.locator('#landed-product-body input[data-field="desc"]').first().fill('Test bag');
   await page.locator('#landed-product-body input[data-field="usd-price"]').first().fill('4.50');
   await page.locator('#landed-product-body input[data-field="qty-per-carton"]').first().fill('50');
@@ -355,26 +354,111 @@ test('loads the landed cost calculator and computes landed cost values', async (
   await expect(page.locator('#landed-product-body input[data-field="aud-landed-cost-per-bag"]')).not.toHaveValue('');
 });
 
-test('landed cost: rate card (Sept 2026) — ocean freight, carrier, and new ports', async ({ page }) => {
+test('landed cost: duty on goods value — Colombo auto-fills 5%, Qingdao 0%, override and solo behave', async ({ page }) => {
+  const pmv = v => parseFloat(String(v).replace(/[^0-9.-]/g, '')) || 0;
+  await mockQuotesApi(page);
+  await page.goto(appPath);
+  await page.locator('button.tab', { hasText: 'Landed Cost Calculator' }).click();
+
+  await page.locator('#landed-ship-mode').selectOption('20ft FCL');
+  await page.locator('#landed-origin-port').selectOption('Colombo');
+  await page.locator('#landed-exchange-rate').fill('0.6814');
+  await fillLandedRow(page, 0, { 'desc': 'Import bag', 'usd-price': '4.50', 'qty-per-carton': '50', 'cbm-per-carton': '0.5', 'cartons': '4' });
+
+  const duty = page.locator('#landed-product-body input[data-field="duty-pct"]').first();
+  const bag = page.locator('#landed-product-body input[data-field="aud-landed-cost-per-bag"]').first();
+  const soloBag = page.locator('#landed-product-body input[data-field="aud-landed-cost-per-bag-solo"]').first();
+  // Colombo auto-fills 5% duty, editable.
+  await expect(duty).toHaveValue('5');
+  await expect(duty).toBeEditable();
+
+  // landed/carton = price + duty(5% of goods) + freight — duty never applies to freight.
+  const audPrice = pmv(await page.locator('#landed-product-body input[data-field="aud-price-per-carton"]').first().inputValue());
+  const totalCharge = pmv(await page.locator('#landed-total-charge').inputValue());
+  const freightPerCarton = (totalCharge / 30) * 0.5; // 20ft FCL divisor 30 CBM
+  const expectedBag = (audPrice + audPrice * 0.05 + freightPerCarton) / 50;
+  expect(Math.abs(pmv(await bag.inputValue()) - expectedBag)).toBeLessThan(0.001);
+
+  // Workings show the duty line on the goods value.
+  await page.locator('#toggle-workings-btn').click();
+  await page.locator('.landed-workings-row .workings-toggle').first().click();
+  await expect(page.locator('.landed-workings-row .workings-panel').first()).toContainText('Duty 5% of');
+  await expect(page.locator('.landed-workings-row .workings-panel').first()).toContainText('goods value only');
+
+  // Manual override recalculates and sticks.
+  await duty.fill('10');
+  const expectedBag10 = (audPrice * 1.10 + freightPerCarton) / 50;
+  expect(Math.abs(pmv(await bag.inputValue()) - expectedBag10)).toBeLessThan(0.001);
+  // Solo includes the same dutyPerCarton (goods value only).
+  const soloFreightPerCarton = totalCharge / 4;
+  const expectedSolo10 = (audPrice * 1.10 + soloFreightPerCarton) / 50;
+  expect(Math.abs(pmv(await soloBag.inputValue()) - expectedSolo10)).toBeLessThan(0.001);
+
+  // Port change back to a 0% port resets the override.
+  await page.locator('#landed-origin-port').selectOption('Qingdao');
+  await expect(duty).toHaveValue('');
+});
+
+test('landed cost: no SKU column; CBM popover and SKU dropdown stay fully on-screen', async ({ page }) => {
+  await mockQuotesApi(page);
+  await page.goto(appPath);
+  await page.locator('button.tab', { hasText: 'Landed Cost Calculator' }).click();
+
+  // Landed table renders without a SKU column (custom imports have no stock code).
+  await expect(page.locator('#landed-table th', { hasText: /^SKU$/ })).toHaveCount(0);
+  await expect(page.locator('#landed-product-body input[data-field="sku"]')).toHaveCount(0);
+  await expect(page.locator('#landed-table th').first()).toHaveText('Description');
+
+  // CBM popover opens fully inside the viewport and focuses the L field.
+  await page.locator('.cbm-toggle').first().click();
+  const pop = page.locator('.cbm-lwh-pop').first();
+  await expect(pop).toBeVisible();
+  const box = await pop.boundingBox();
+  const vp = page.viewportSize();
+  expect(box.y).toBeGreaterThanOrEqual(0);
+  expect(box.y + box.height).toBeLessThanOrEqual(vp.height + 1);
+  expect(box.x).toBeGreaterThanOrEqual(0);
+  await expect(page.locator('#landed-product-body input[data-field="cbm-l"]').first()).toBeFocused();
+  // Type dimensions, Enter applies and closes.
+  await page.keyboard.type('50');
+  await page.keyboard.press('Tab');
+  await page.keyboard.type('40');
+  await page.keyboard.press('Tab');
+  await page.keyboard.type('30');
+  await page.keyboard.press('Enter');
+  await expect(pop).toBeHidden();
+  await expect(page.locator('#landed-product-body input[data-field="cbm-per-carton"]').first()).toHaveValue('0.06');
+
+  // Quote tab's SKU search dropdown stays fully on-screen too.
+  await page.locator('button.tab', { hasText: /^Calculator$/ }).click();
+  await page.locator('#line-items-body input[data-field="sku"]').first().fill('1000TUBE');
+  const dd = page.locator('.product-dropdown.show').first();
+  await expect(dd).toBeVisible();
+  const dbox = await dd.boundingBox();
+  expect(dbox.y).toBeGreaterThanOrEqual(0);
+  expect(dbox.y + dbox.height).toBeLessThanOrEqual(vp.height + 1);
+});
+
+test('landed cost: rate card (Oct 2026) — ocean freight, carrier, and ports', async ({ page }) => {
   await mockQuotesApi(page);
   await page.goto(appPath);
   await page.locator('button.tab', { hasText: 'Landed Cost Calculator' }).click();
   await page.locator('#landed-ship-mode').selectOption('20ft FCL');
 
-  // China lanes book COSCO per QIS practice.
+  // China lanes use the named OOCL rate (COSCO not offered on the Oct card).
   await page.locator('#landed-origin-port').selectOption('Shanghai');
-  await expect(page.locator('#landed-ocean-freight')).toHaveValue('2900');
-  await expect(page.locator('#landed-carrier')).toHaveValue('COSCO');
+  await expect(page.locator('#landed-ocean-freight')).toHaveValue('2725');
+  await expect(page.locator('#landed-carrier')).toHaveValue('OOCL');
 
   // 40ft rate for the same lane.
   await page.locator('#landed-ship-mode').selectOption('40ft FCL');
-  await expect(page.locator('#landed-ocean-freight')).toHaveValue('5800');
+  await expect(page.locator('#landed-ocean-freight')).toHaveValue('5450');
 
-  // NEW port Shekou is selectable and calculates.
+  // Shekou is selectable and calculates.
   await page.locator('#landed-ship-mode').selectOption('20ft FCL');
   await page.locator('#landed-origin-port').selectOption('Shekou');
-  await expect(page.locator('#landed-ocean-freight')).toHaveValue('2900');
-  await expect(page.locator('#landed-carrier')).toHaveValue('COSCO');
+  await expect(page.locator('#landed-ocean-freight')).toHaveValue('2725');
+  await expect(page.locator('#landed-carrier')).toHaveValue('OOCL');
 
   // Default exchange rate matches the card.
   await expect(page.locator('#landed-exchange-rate')).toHaveValue('0.6814');
@@ -400,7 +484,6 @@ test('sends landed cost lines into the calculator as cost prices', async ({ page
   await page.locator('#landed-exchange-rate').fill('0.65');
   await page.locator('#landed-tt-balance-fee').fill('15');
 
-  await page.locator('#landed-product-body input[data-field="sku"]').first().fill('SKU-1');
   await page.locator('#landed-product-body input[data-field="desc"]').first().fill('Test bag');
   await page.locator('#landed-product-body input[data-field="usd-price"]').first().fill('4.50');
   await page.locator('#landed-product-body input[data-field="qty-per-carton"]').first().fill('50');
@@ -413,7 +496,8 @@ test('sends landed cost lines into the calculator as cost prices', async ({ page
   await page.locator('#basis-bundled').click();
 
   await expect(page.locator('button.tab').filter({ hasText: /^Calculator$/ })).toHaveClass(/active/);
-  await expect(page.locator('#line-items-body input[data-field="sku"]').first()).toHaveValue('SKU-1');
+  // Landed items are custom imports with no stock code — the quote receives a blank SKU.
+  await expect(page.locator('#line-items-body input[data-field="sku"]').first()).toHaveValue('');
   await expect(page.locator('#line-items-body input[data-field="desc"]').first()).toHaveValue('Test bag');
   await expect(page.locator('#line-items-body input[data-field="cost"]').first()).not.toHaveValue('');
   await expect(page.locator('#internal-notes')).toHaveValue(/Cost basis: bundled landed/);
@@ -429,9 +513,9 @@ test('send to quote: Solo basis sends solo landed/bag; Cancel sends nothing; sin
   await page.locator('#landed-ship-mode').selectOption('LCL');
   await page.locator('#landed-origin-port').selectOption('Colombo');
   await page.locator('#landed-exchange-rate').fill('0.6814');
-  await fillLandedRow(page, 0, { 'sku': 'BIG', 'usd-price': '5', 'qty-per-carton': '20', 'cbm-per-carton': '1', 'cartons': '20' });
+  await fillLandedRow(page, 0, { 'usd-price': '5', 'qty-per-carton': '20', 'cbm-per-carton': '1', 'cartons': '20' });
   await page.locator('#add-landed-btn').click();
-  await fillLandedRow(page, 1, { 'sku': 'SMALL', 'usd-price': '5', 'qty-per-carton': '20', 'cbm-per-carton': '0.01', 'cartons': '1' });
+  await fillLandedRow(page, 1, { 'usd-price': '5', 'qty-per-carton': '20', 'cbm-per-carton': '0.01', 'cartons': '1' });
 
   const soloSmall = pmv(await page.locator('#landed-product-body input[data-field="aud-landed-cost-per-bag-solo"]').nth(1).inputValue());
   const bundledSmall = pmv(await page.locator('#landed-product-body input[data-field="aud-landed-cost-per-bag"]').nth(1).inputValue());
@@ -462,12 +546,12 @@ test('send to quote: single-row LCL shipment (solo == bundled) skips the basis m
   await page.locator('#landed-origin-port').selectOption('Colombo');
   await page.locator('#landed-exchange-rate').fill('0.6814');
   // Single LCL item: solo equals bundled to the cent, so no dialog.
-  await fillLandedRow(page, 0, { 'sku': 'ONLY', 'usd-price': '5', 'qty-per-carton': '10', 'cbm-per-carton': '0.5', 'cartons': '4' });
+  await fillLandedRow(page, 0, { 'desc': 'Only item', 'usd-price': '5', 'qty-per-carton': '10', 'cbm-per-carton': '0.5', 'cartons': '4' });
 
   await page.locator('#send-to-quote-btn').click();
   await expect(page.locator('#basis-overlay')).not.toHaveClass(/show/);
   await expect(page.locator('button.tab').filter({ hasText: /^Calculator$/ })).toHaveClass(/active/);
-  await expect(page.locator('#line-items-body input[data-field="sku"]').first()).toHaveValue('ONLY');
+  await expect(page.locator('#line-items-body input[data-field="desc"]').first()).toHaveValue('Only item');
 });
 
 test('landed cost: per-unit costs show 4 decimals, order money stays 2 decimals', async ({ page }) => {
@@ -553,7 +637,6 @@ test('landed cost: per-row total landed and grand total are correct', async ({ p
   const parseMoney = s => parseFloat(String(s).replace(/[^0-9.-]/g, '')) || 0;
 
   // Row 1
-  await page.locator('#landed-product-body input[data-field="sku"]').first().fill('SKU-1');
   await page.locator('#landed-product-body input[data-field="usd-price"]').first().fill('4.50');
   await page.locator('#landed-product-body input[data-field="qty-per-carton"]').first().fill('50');
   await page.locator('#landed-product-body input[data-field="cbm-per-carton"]').first().fill('0.5');
@@ -719,12 +802,12 @@ test('landed cost: FCL solo landed/bag equals full freight ÷ item cartons', asy
 
   const audPrice = pm(await page.locator('#landed-product-body input[data-field="aud-price-per-carton"]').first().inputValue());
   const solo = pm(await page.locator('#landed-product-body input[data-field="aud-landed-cost-per-bag-solo"]').first().inputValue());
-  // Solo freight/carton = 8000 / 4 = 2000; no duty; ÷ 50 bags.
-  const expected = (audPrice + 8000 / 4) / 50;
+  // Solo freight/carton = 8000 / 4 = 2000; Colombo auto-duty 5% of goods value; ÷ 50 bags.
+  const expected = (audPrice * 1.05 + 8000 / 4) / 50;
   expect(Math.abs(solo - expected)).toBeLessThan(0.001);
 });
 
-test('landed cost: Sept 2026 FCL — Xiamen 40ft total (COSCO charges) and Colombo surrender fee', async ({ page }) => {
+test('landed cost: Oct 2026 FCL — Xiamen 40ft total (OOCL charges) and Colombo surrender fee', async ({ page }) => {
   await mockQuotesApi(page);
   await page.goto(appPath);
   await page.locator('button.tab', { hasText: 'Landed Cost Calculator' }).click();
@@ -732,10 +815,10 @@ test('landed cost: Sept 2026 FCL — Xiamen 40ft total (COSCO charges) and Colom
   await page.locator('#landed-ship-mode').selectOption('40ft FCL');
   await page.locator('#landed-origin-port').selectOption('Xiamen');
   await page.locator('#landed-exchange-rate').fill('0.6814');
-  // Ocean 5800/0.6814=8511.89 + port service 925 + doc 160 + DO 50 + cargo 85 + EDI 30
-  // + customs 80 + quarantine 45 + cartage 435 + fuel 35% 152.25 + slot 320 + PIL 285
-  // + tolls 25 + TT deposit 30 = 11134.14
-  await expect(page.locator('#landed-total-charge')).toHaveValue('11134.14');
+  // Ocean 5450/0.6814=7998.24 + port service 925 + doc 160 + DO 50 + cargo 85 + EDI 30
+  // + customs 80 + quarantine 45 + cartage 435 + fuel 40% 174 + slot 320 + PIL 285
+  // + tolls 25 + TT deposit 30 = 10642.24
+  await expect(page.locator('#landed-total-charge')).toHaveValue('10642.24');
   const ps = page.locator('#freight-breakdown-body input[data-breakdown-key="portService"]');
   expect(parseFloat(await ps.inputValue())).toBe(925);
 
@@ -755,7 +838,7 @@ test('landed cost: LCL freight total includes ocean freight and PSS, both overri
   await page.locator('button.tab', { hasText: 'Landed Cost Calculator' }).click();
 
   await page.locator('#landed-ship-mode').selectOption('LCL');
-  await page.locator('#landed-origin-port').selectOption('Colombo'); // Aug 2026 card: perCbm 111, PSS inclusive
+  await page.locator('#landed-origin-port').selectOption('Colombo'); // Oct 2026 card: perCbm 136, PSS inclusive
   await page.locator('#landed-exchange-rate').fill('0.6814');
   // totalCbm = 0.5 × 4 = 2 CBM (above the 1 CBM minimum).
   await fillLandedRow(page, 0, { 'usd-price': '5', 'qty-per-carton': '50', 'cbm-per-carton': '0.5', 'cartons': '4' });
@@ -764,14 +847,14 @@ test('landed cost: LCL freight total includes ocean freight and PSS, both overri
   const pss = page.locator('#freight-breakdown-body input[data-breakdown-key="pss"]');
   await expect(ocean).toHaveCount(1);
   await expect(pss).toHaveCount(1);
-  // Ocean = 111 × 2 ÷ 0.6814 = 325.80 ; PSS now inclusive in the ocean rate = $0.
-  expect(pm(await ocean.inputValue())).toBeCloseTo(325.80, 1);
+  // Ocean = 136 × 2 ÷ 0.6814 = 399.18 ; PSS inclusive in the ocean rate = $0.
+  expect(pm(await ocean.inputValue())).toBeCloseTo(399.18, 1);
   expect(pm(await pss.inputValue())).toBe(0);
   await expect(page.locator('#freight-breakdown-body .breakdown-row', { hasText: 'PSS' })).toContainText('inclusive in ocean rate');
 
-  // Exact total = breakdown + Westpac TT deposit ($30). Fuel levy now 35%:
-  // 325.80+0+170+40+50+55+35+85+80+45+90+31.50+18.50+6.48 + 30 = 1062.28
-  expect(await page.locator('#landed-total-charge').inputValue()).toBe('1062.28');
+  // Exact total = breakdown + Westpac TT deposit ($30). Fuel levy now 40%:
+  // 399.18+0+170+40+50+55+35+85+80+45+90+36.00+18.50+7.40 + 30 = 1141.08
+  expect(await page.locator('#landed-total-charge').inputValue()).toBe('1141.08');
 
   // Breakdown lines render in the rate-card order.
   const labels = await page.locator('#freight-breakdown-body .breakdown-row > span').allTextContents();
@@ -793,30 +876,30 @@ test('landed cost: LCL freight total includes ocean freight and PSS, both overri
   expect(after).toBeGreaterThan(before + 9000);
 });
 
-test('landed cost: Aug 2026 LCL card — Qingdao 10 CBM ocean, zero PSS, 35% fuel levy on both lines', async ({ page }) => {
+test('landed cost: Oct 2026 LCL card — Qingdao 10 CBM ocean, zero PSS, 40% fuel levy on both lines', async ({ page }) => {
   await mockQuotesApi(page);
   await page.goto(appPath);
   await page.locator('button.tab', { hasText: 'Landed Cost Calculator' }).click();
 
   await page.locator('#landed-ship-mode').selectOption('LCL');
-  await page.locator('#landed-origin-port').selectOption('Qingdao'); // perCbm 66
+  await page.locator('#landed-origin-port').selectOption('Qingdao'); // perCbm 92
   await page.locator('#landed-exchange-rate').fill('0.6814');
   // 10 CBM total.
   await fillLandedRow(page, 0, { 'usd-price': '5', 'qty-per-carton': '50', 'cbm-per-carton': '1', 'cartons': '10' });
 
   const val = async key => pm(await page.locator(`#freight-breakdown-body input[data-breakdown-key="${key}"]`).inputValue());
-  // Ocean = 66 × 10 ÷ 0.6814 ≈ 968.60
-  expect(await val('oceanFreight')).toBeCloseTo(968.59, 0);
+  // Ocean = 92 × 10 ÷ 0.6814 ≈ 1350.16
+  expect(await val('oceanFreight')).toBeCloseTo(1350.16, 0);
   expect(await val('pss')).toBe(0);
-  // Delivery = max(90, 30×10) = 300; fuel levy 35% → 105.
+  // Delivery = max(90, 30×10) = 300; fuel levy 40% → 120.
   expect(await val('delivery')).toBeCloseTo(300, 2);
-  expect(await val('deliveryFuel')).toBeCloseTo(105, 2);
-  // Temporary terminal = max(18.5, 5×10) = 50; fuel levy 35% → 17.50.
+  expect(await val('deliveryFuel')).toBeCloseTo(120, 2);
+  // Temporary terminal = max(18.5, 5×10) = 50; fuel levy 40% → 20.
   expect(await val('temporaryTerminal')).toBeCloseTo(50, 2);
-  expect(await val('temporaryFuel')).toBeCloseTo(17.5, 2);
+  expect(await val('temporaryFuel')).toBeCloseTo(20, 2);
   // Labels state the current levy percentage.
-  await expect(page.locator('#freight-breakdown-body .breakdown-row', { hasText: 'Domestic Fuel Levy' })).toContainText('35% of Delivery');
-  await expect(page.locator('#freight-breakdown-body .breakdown-row', { hasText: 'Temporary Terminal Fuel Levy' })).toContainText('35%');
+  await expect(page.locator('#freight-breakdown-body .breakdown-row', { hasText: 'Domestic Fuel Levy' })).toContainText('40% of Delivery');
+  await expect(page.locator('#freight-breakdown-body .breakdown-row', { hasText: 'Temporary Terminal Fuel Levy' })).toContainText('40%');
 });
 
 test('landed cost: single-product LCL solo includes the item\'s own ocean freight', async ({ page }) => {
@@ -881,7 +964,7 @@ test('landed cost: dedicated print shows the full-width table; workings print on
 
   await page.locator('#landed-ship-mode').selectOption('20ft FCL');
   await page.locator('#landed-origin-port').selectOption('Colombo');
-  await fillLandedRow(page, 0, { 'sku': 'SKU-1', 'usd-price': '4.50', 'qty-per-carton': '50', 'cbm-per-carton': '0.5', 'cartons': '2' });
+  await fillLandedRow(page, 0, { 'usd-price': '4.50', 'qty-per-carton': '50', 'cbm-per-carton': '0.5', 'cartons': '2' });
 
   // Trigger the real landed print path (window.print stubbed) — adds print-landed.
   await page.locator('button:has-text("Print / Export")').click();

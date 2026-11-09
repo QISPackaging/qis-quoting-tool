@@ -27,7 +27,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .cbm-calc-cell{position:relative}
 .cbm-toggle{font-size:14px;line-height:1;padding:4px 6px;height:30px;border-radius:5px;border:1px solid #e0e0e0;background:#f5f5f3;cursor:pointer}
 .cbm-toggle.has-dims{border-color:#1a1a1a;color:#1a1a1a}
-.cbm-lwh-pop{display:none;position:absolute;top:calc(100% + 4px);left:0;z-index:20;background:#fff;border:1px solid #ccc;border-radius:8px;padding:8px;box-shadow:0 6px 18px rgba(0,0,0,0.12);flex-direction:column;gap:6px}
+.cbm-lwh-pop{display:none;position:fixed;z-index:9999;background:#fff;border:1px solid #ccc;border-radius:8px;padding:8px;box-shadow:0 6px 18px rgba(0,0,0,0.12);flex-direction:column;gap:6px}
 .cbm-calc-cell.open .cbm-lwh-pop{display:flex}
 /* Show-workings reference panels — quiet, monospace, hidden until the feature is toggled on. */
 .landed-workings-row{display:none}
@@ -264,7 +264,7 @@ input[data-field="order-qty"]{-moz-appearance:textfield;appearance:textfield}
   body.print-landed #landed-table td{padding:3px 4px;overflow:hidden;border-bottom:1px solid #d8d8d8}
   body.print-landed #landed-table tr{break-inside:avoid}
   /* The CBM-calc icon column is screen-only; drop it on print to reclaim width. */
-  body.print-landed #landed-table th:nth-child(6),body.print-landed #landed-table td:nth-child(6){display:none!important}
+  body.print-landed #landed-table th:nth-child(5),body.print-landed #landed-table td:nth-child(5){display:none!important}
   body.print-landed .cbm-toggle,body.print-landed .cbm-lwh-pop{display:none!important}
   /* In-table workings rows never print; workings go to the dedicated page-2 container. */
   .landed-workings-row{display:none!important}
@@ -848,8 +848,7 @@ input[type="range"]{accent-color:var(--accent)}
       <table class="line-table" id="landed-table">
         <thead>
           <tr>
-            <th style="width:90px">SKU</th>
-            <th style="min-width:150px">Description</th>
+            <th style="min-width:170px">Description</th>
             <th style="width:82px">USD price/bag</th>
             <th style="width:78px">Qty/carton</th>
             <th style="width:100px">Order qty</th>
@@ -928,58 +927,59 @@ input[type="range"]{accent-color:var(--accent)}
 const GP_RED=30;    // below this: needs approval
 const GP_AMBER=65;  // below this: below target; at or above: on target
 
-// Rate card: 1st – 14th Sept 2026 (Cyclone Global Logistics). China lanes use
-// COSCO per QIS booking practice; Tier 2 alternative exists at 2550-2650/5100-5300.
+// Rate card: 15th – 31st Oct 2026 (Cyclone Global Logistics). COSCO is not offered
+// this card; China lanes use the named OOCL rate per QIS ruling (cheaper Tier 2 /
+// ONE alternatives exist at 2450-2550 / 4900-5100).
 const LANDED_RATE_TABLE = {
   '20ft FCL': {
-    'Colombo': { rate: 2325, carrier: 'OOCL' },
-    'Haiphong': { rate: 1500, carrier: 'ANL' },
-    'Ho Chi Minh': { rate: 2450, carrier: 'COSCO' },
-    'Karachi': { rate: 2350, carrier: 'OOCL' },
-    'Qingdao': { rate: 2900, carrier: 'COSCO' },
-    'Semarang': { rate: 1500, carrier: 'ANL' },
-    'Shanghai': { rate: 2900, carrier: 'COSCO' },
-    'Shekou': { rate: 2900, carrier: 'COSCO' },
-    'Xiamen': { rate: 2900, carrier: 'COSCO' },
-    'Yantian': { rate: 2750, carrier: 'HMM' },
-    'Ningbo': { rate: 2900, carrier: 'COSCO' },
+    'Colombo': { rate: 2650, carrier: 'OOCL' },
+    'Haiphong': { rate: 2450, carrier: 'OOCL' },
+    'Ho Chi Minh': { rate: 2450, carrier: 'OOCL' },
+    'Karachi': { rate: 2600, carrier: 'OOCL' },
+    'Qingdao': { rate: 2725, carrier: 'OOCL' },
+    'Semarang': { rate: 2550, carrier: 'ONE' },
+    'Shanghai': { rate: 2725, carrier: 'OOCL' },
+    'Shekou': { rate: 2725, carrier: 'OOCL' },
+    'Xiamen': { rate: 2725, carrier: 'OOCL' },
+    'Yantian': { rate: 2775, carrier: 'OOCL' },
+    'Ningbo': { rate: 2725, carrier: 'OOCL' },
   },
   '40ft FCL': {
-    'Colombo': { rate: 4650, carrier: 'OOCL' },
-    'Haiphong': { rate: 3000, carrier: 'ANL' },
-    'Ho Chi Minh': { rate: 4900, carrier: 'COSCO' },
-    'Karachi': { rate: 4700, carrier: 'OOCL' },
-    'Qingdao': { rate: 5800, carrier: 'COSCO' },
-    'Semarang': { rate: 3000, carrier: 'ANL' },
-    'Shanghai': { rate: 5800, carrier: 'COSCO' },
-    'Shekou': { rate: 5800, carrier: 'COSCO' },
-    'Xiamen': { rate: 5800, carrier: 'COSCO' },
-    'Yantian': { rate: 5500, carrier: 'HMM' },
-    'Ningbo': { rate: 5800, carrier: 'COSCO' },
+    'Colombo': { rate: 5300, carrier: 'OOCL' },
+    'Haiphong': { rate: 4900, carrier: 'OOCL' },
+    'Ho Chi Minh': { rate: 4900, carrier: 'OOCL' },
+    'Karachi': { rate: 5200, carrier: 'OOCL' },
+    'Qingdao': { rate: 5450, carrier: 'OOCL' },
+    'Semarang': { rate: 5100, carrier: 'ONE' },
+    'Shanghai': { rate: 5450, carrier: 'OOCL' },
+    'Shekou': { rate: 5450, carrier: 'OOCL' },
+    'Xiamen': { rate: 5450, carrier: 'OOCL' },
+    'Yantian': { rate: 5550, carrier: 'OOCL' },
+    'Ningbo': { rate: 5450, carrier: 'OOCL' },
   }
 };
 
-// LCL rate card 15–31 Aug 2026: ocean freight USD per CBM (= minimum), PSS now
+// LCL rate card 15–31 Oct 2026: ocean freight USD per CBM (= minimum), PSS now
 // INCLUSIVE in the ocean rate on all routes (pss: 0 — field kept so a future
 // card can reinstate a separate PSS). WRS/BAF inclusive.
 const LANDED_LCL_RATE_TABLE = {
   'LCL': {
-    'New Delhi': { perCbm: 131, pss: 0 },
-    'Karachi': { perCbm: 121, pss: 0 },
-    'Ho Chi Minh': { perCbm: 63, pss: 0 },
-    'Haiphong': { perCbm: 89, pss: 0 },
-    'Keelung': { perCbm: 85, pss: 0 },
-    'Colombo': { perCbm: 111, pss: 0 },
-    'Shanghai': { perCbm: 56, pss: 0 },
-    'Ningbo': { perCbm: 66, pss: 0 },
-    'Semarang': { perCbm: 91, pss: 0 },
-    'Xiamen': { perCbm: 66, pss: 0 },
-    'Qingdao': { perCbm: 66, pss: 0 },
+    'New Delhi': { perCbm: 170, pss: 0 },
+    'Karachi': { perCbm: 160, pss: 0 },
+    'Ho Chi Minh': { perCbm: 160, pss: 0 },
+    'Haiphong': { perCbm: 125, pss: 0 },
+    'Keelung': { perCbm: 105, pss: 0 },
+    'Colombo': { perCbm: 136, pss: 0 },
+    'Shanghai': { perCbm: 75, pss: 0 },
+    'Ningbo': { perCbm: 85, pss: 0 },
+    'Semarang': { perCbm: 125, pss: 0 },
+    'Xiamen': { perCbm: 126, pss: 0 },
+    'Qingdao': { perCbm: 92, pss: 0 },
   }
 };
 
 // LCL domestic fuel levy — applied to Delivery and Temporary Terminal lines.
-const LCL_FUEL_LEVY = 0.35;
+const LCL_FUEL_LEVY = 0.40;
 
 const FCL_DESTINATION_CHARGES = {
   OOCL: { portService: { '20ft FCL': 680, '40ft FCL': 925 }, docFee: 160 },
@@ -991,8 +991,8 @@ const FCL_DESTINATION_CHARGES = {
   TSL: { portService: { '20ft FCL': 745, '40ft FCL': 1025 }, docFee: 165 },
   HMM: { portService: { '20ft FCL': 680, '40ft FCL': 925 }, docFee: 160 },
   YML: { portService: { '20ft FCL': 680, '40ft FCL': 925 }, docFee: 160 },
-  // Conservative assumption pending forwarder confirmation of ANL's carrier group:
-  ANL: { portService: { '20ft FCL': 745, '40ft FCL': 1025 }, docFee: 165 },
+  // Conservative assumption pending forwarder confirmation of ONE's carrier group:
+  ONE: { portService: { '20ft FCL': 745, '40ft FCL': 1025 }, docFee: 165 },
 };
 
 const FCL_COMMON_CHARGES = {
@@ -1045,6 +1045,19 @@ function getLandedRateForModePort(mode,port){
   return LANDED_RATE_TABLE[mode] && LANDED_RATE_TABLE[mode][port] ? LANDED_RATE_TABLE[mode][port] : null;
 }
 
+// Default customs duty % by ORIGIN PORT, applied to the goods value only (never
+// freight). Sri Lanka / India / Pakistan origins attract 5%; extend here as new
+// lanes appear (e.g. a Bangladesh port would also be 5). Unlisted ports = 0%.
+const PORT_DEFAULT_DUTY = {
+  'Colombo': 5,
+  'New Delhi': 5,
+  'Karachi': 5,
+};
+
+function portDefaultDuty(port){
+  return PORT_DEFAULT_DUTY[port] != null ? PORT_DEFAULT_DUTY[port] : 0;
+}
+
 // FCL container capacity, in CBM, per the standard rate card
 const FCL_CONTAINER_CBM={'20ft FCL':30,'40ft FCL':60};
 
@@ -1095,7 +1108,7 @@ function getFreightBreakdownItems(mode,port,exchangeRate,totalCbm){
       {key:'customsClearance',label:'Customs clearance',value:FCL_COMMON_CHARGES.customsClearance},
       {key:'quarantineRegistration',label:'Quarantine registration',value:FCL_COMMON_CHARGES.quarantineRegistration},
       {key:'cartage',label:'Cartage',value:cartage},
-      {key:'domesticFuel',label:'Domestic fuel surcharge (35%)',value:round2(cartage*0.35)},
+      {key:'domesticFuel',label:'Domestic fuel surcharge (40%)',value:round2(cartage*0.40)},
       {key:'timeSlot',label:'Time slot booking',value:FCL_COMMON_CHARGES.timeSlot},
       {key:'portInfrastructure',label:'Port infrastructure',value:FCL_COMMON_CHARGES.portInfrastructure},
       {key:'tolls',label:'Tolls',value:FCL_COMMON_CHARGES.tolls}
@@ -1244,12 +1257,40 @@ function computeRowCbm(row){
   row.querySelector('[data-field="cbm-per-carton"]').value=round2(cbm);
 }
 
+// Position a popover with position:fixed next to its anchor, flipping upward when
+// the viewport has no room below, so it never opens clipped or below the fold.
+function positionFixedPopover(el,anchor){
+  el.style.position='fixed';
+  el.style.visibility='hidden';
+  // Must be displayed to measure; the .open class is already applied by the caller.
+  const h=el.offsetHeight||110;
+  const w=el.offsetWidth||220;
+  const r=anchor.getBoundingClientRect();
+  const spaceBelow=window.innerHeight-r.bottom;
+  const top=(spaceBelow>=h+8||spaceBelow>=r.top)?(r.bottom+4):(r.top-h-4);
+  let left=r.left;
+  if(left+w>window.innerWidth-8)left=window.innerWidth-w-8;
+  if(left<8)left=8;
+  el.style.top=Math.max(8,top)+'px';
+  el.style.left=left+'px';
+  el.style.visibility='';
+}
+
+function closeAllCbmPopovers(){
+  document.querySelectorAll('.cbm-calc-cell.open').forEach(c=>c.classList.remove('open'));
+}
+document.addEventListener('click',e=>{
+  if(!e.target.closest('.cbm-calc-cell'))closeAllCbmPopovers();
+});
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape')closeAllCbmPopovers();
+});
+
 function addLandedProduct(){
   const tbody=document.getElementById('landed-product-body');
   const row=document.createElement('tr');
   row.className='landed-product-row';
   row.innerHTML=`
-    <td><input type="text" data-field="sku" value=""></td>
     <td><input type="text" data-field="desc" value=""></td>
     <td><input type="number" data-field="usd-price" min="0" step="0.01" value=""></td>
     <td><input type="number" data-field="qty-per-carton" min="0" step="1" value=""></td>
@@ -1277,11 +1318,13 @@ function addLandedProduct(){
     <td><input type="text" data-field="aud-total-landed" readonly value=""></td>
     <td class="no-print"><button class="remove-btn" aria-label="Remove product">×</button></td>
   `;
+  const defDuty=portDefaultDuty(document.getElementById('landed-origin-port').value);
+  if(defDuty>0) row.querySelector('[data-field="duty-pct"]').value=defDuty;
   tbody.appendChild(row);
   // Workings reference row (sibling), hidden on print and until "Show workings" is on.
   const workingsRow=document.createElement('tr');
   workingsRow.className='landed-workings-row';
-  workingsRow.innerHTML='<td colspan="15" class="landed-workings-cell">'
+  workingsRow.innerHTML='<td colspan="14" class="landed-workings-cell">'
     +'<button type="button" class="workings-toggle">&#9656; Workings</button>'
     +'<div class="workings-panel"></div></td>';
   tbody.appendChild(workingsRow);
@@ -1299,12 +1342,33 @@ function addLandedProduct(){
       if(f==='order-qty') syncLandedRowQuantities(row,'order');
       else if(f==='cartons') syncLandedRowQuantities(row,'cartons');
       else if(f==='qty-per-carton') syncLandedRowQuantities(row,'qty-per-carton');
+      else if(f==='duty-pct') row.dataset.dutyManual='1'; // kept until the port changes
       updateLandedCalculator();
     });
   });
   const cbmToggle=row.querySelector('.cbm-toggle');
   const cbmCell=row.querySelector('.cbm-calc-cell');
-  cbmToggle.addEventListener('click',()=>cbmCell.classList.toggle('open'));
+  cbmToggle.addEventListener('click',e=>{
+    e.stopPropagation();
+    const wasOpen=cbmCell.classList.contains('open');
+    closeAllCbmPopovers();
+    if(!wasOpen){
+      cbmCell.classList.add('open');
+      positionFixedPopover(row.querySelector('.cbm-lwh-pop'),cbmToggle);
+      const l=row.querySelector('[data-field="cbm-l"]');
+      if(l){l.focus();if(l.select)l.select();}
+    }
+  });
+  // Enter inside the popover closes it with the computed CBM applied (CBM updates
+  // live on input); Escape closes it. Tab moves L -> W -> H in DOM order.
+  row.querySelector('.cbm-lwh-pop').addEventListener('keydown',e=>{
+    if(e.key==='Enter'||e.key==='Escape'){
+      e.preventDefault();
+      cbmCell.classList.remove('open');
+      cbmToggle.focus();
+    }
+  });
+  row.querySelector('.cbm-lwh-pop').addEventListener('click',e=>e.stopPropagation());
   const unitBtn=row.querySelector('[data-field="cbm-unit"]');
   unitBtn.addEventListener('click',()=>{
     unitBtn.dataset.unit=unitBtn.dataset.unit==='cm'?'mm':'cm';
@@ -1380,7 +1444,7 @@ function buildLandedWorkings(v){
   lines.push('AUD price/carton: '+usd+' USD × '+v.qtyPerCarton+' bags/ctn ÷ '+v.exchangeRate+' = '+fmtCurrency4(v.audPricePerCarton));
   lines.push('Freight/carton: ('+fmtCurrency(v.totalCharge)+' ÷ '+divisorStr+' container CBM) × '+(v.cbmPerCarton||0).toFixed(4)+' CBM/ctn = '+fmtCurrency4(v.freightPerCarton));
   if(v.dutyPct>0){
-    lines.push('Duty/carton: ('+fmtCurrency4(v.audPricePerCarton)+' + '+fmtCurrency4(v.freightPerCarton)+') × '+v.dutyPct+'% = '+fmtCurrency4(v.dutyPerCarton));
+    lines.push('Duty '+v.dutyPct+'% of '+fmtCurrency4(v.audPricePerCarton)+' (goods value only) = '+fmtCurrency4(v.dutyPerCarton));
   }
   lines.push('Landed/carton: '+fmtCurrency4(v.audPricePerCarton)+' + '+fmtCurrency4(v.freightPerCarton)+(v.dutyPct>0?' + '+fmtCurrency4(v.dutyPerCarton):'')+' = '+fmtCurrency4(v.landedCostPerCarton));
   lines.push('Landed/bag: '+fmtCurrency4(v.landedCostPerCarton)+' ÷ '+v.qtyPerCarton+' bags/ctn = '+fmtCurrency4(v.landedCostPerBag));
@@ -1391,7 +1455,7 @@ function buildLandedWorkings(v){
   const soloNote=isFcl?'full container freight':'full LCL charges @ item CBM';
   lines.push('Solo freight/carton: '+fmtCurrency(v.soloFreightTotal)+' ('+soloNote+') ÷ '+v.cartons+' ctns = '+fmtCurrency4(v.soloFreightPerCarton));
   if(v.dutyPct>0){
-    lines.push('Solo duty/carton: ('+fmtCurrency4(v.audPricePerCarton)+' + '+fmtCurrency4(v.soloFreightPerCarton)+') × '+v.dutyPct+'% = '+fmtCurrency4(v.soloDutyPerCarton));
+    lines.push('Solo duty: '+v.dutyPct+'% of '+fmtCurrency4(v.audPricePerCarton)+' (goods value — same as bundled) = '+fmtCurrency4(v.soloDutyPerCarton));
   }
   lines.push('Solo landed/carton: '+fmtCurrency4(v.audPricePerCarton)+' + '+fmtCurrency4(v.soloFreightPerCarton)+(v.dutyPct>0?' + '+fmtCurrency4(v.soloDutyPerCarton):'')+' = '+fmtCurrency4(v.soloLandedPerCarton));
   lines.push('Solo landed/bag: '+fmtCurrency4(v.soloLandedPerCarton)+' ÷ '+v.qtyPerCarton+' bags/ctn = '+fmtCurrency4(v.soloLandedPerBag));
@@ -1428,7 +1492,8 @@ function updateLandedProductRows(){
     const freightPerCarton = totalCharge>0 && cbmDivisor>0 && cartons>0
       ? (totalCharge / cbmDivisor) * cbmPerCarton
       : 0;
-    const dutyPerCarton = (audPricePerCarton+freightPerCarton) * (dutyPct/100);
+    // Duty applies to the goods' customs value only — never to freight.
+    const dutyPerCarton = audPricePerCarton * (dutyPct/100);
     const landedCostPerCarton = audPricePerCarton + freightPerCarton + dutyPerCarton;
     const landedCostPerBag = qtyPerCarton>0 ? landedCostPerCarton / qtyPerCarton : 0;
     const totalLanded = landedCostPerCarton * cartons;
@@ -1438,7 +1503,7 @@ function updateLandedProductRows(){
     // Solo (item-alone) landed/bag — this item bearing the whole shipment's freight.
     const soloFreightTotal = computeSoloFreightTotal(mode,port,exchangeRate,rowTotalCbm,totalCharge);
     const soloFreightPerCarton = cartons>0 ? soloFreightTotal / cartons : 0;
-    const soloDutyPerCarton = (audPricePerCarton+soloFreightPerCarton) * (dutyPct/100);
+    const soloDutyPerCarton = dutyPerCarton; // duty depends only on goods value — identical solo
     const soloLandedPerCarton = audPricePerCarton + soloFreightPerCarton + soloDutyPerCarton;
     const soloLandedPerBag = qtyPerCarton>0 ? soloLandedPerCarton / qtyPerCarton : 0;
 
@@ -1454,9 +1519,8 @@ function updateLandedProductRows(){
     if(totalCbmField) totalCbmField.value=rowTotalCbm.toFixed(4);
 
     // Hide fully-empty product rows on print.
-    const skuVal=(row.querySelector('[data-field="sku"]').value||'').trim();
     const descVal=(row.querySelector('[data-field="desc"]').value||'').trim();
-    const isEmptyRow = !skuVal && !descVal && cartons===0 && usdPrice===0;
+    const isEmptyRow = !descVal && cartons===0 && usdPrice===0;
     row.classList.toggle('empty-line-print',isEmptyRow);
     const wr=row.nextElementSibling;
     if(wr&&wr.classList.contains('landed-workings-row')) wr.classList.toggle('empty-line-print',isEmptyRow);
@@ -1563,9 +1627,8 @@ function printLandedCost(){
       const panel=row.nextElementSibling&&row.nextElementSibling.querySelector
         ?row.nextElementSibling.querySelector('.workings-panel'):null;
       if(!panel||!panel.textContent.trim())return;
-      const sku=(row.querySelector('[data-field="sku"]').value||'').trim();
       const desc=(row.querySelector('[data-field="desc"]').value||'').trim();
-      const head=(sku||desc)?[sku,desc].filter(Boolean).join(' — '):'Line';
+      const head=desc||'Line';
       blocks.push({head,body:panel.textContent});
     });
     if(blocks.length){
@@ -1600,7 +1663,6 @@ function setShipments(list){localStorage.setItem(SHIPMENTS_KEY,JSON.stringify(li
 function captureLandedState(){
   const rows=Array.from(document.querySelectorAll('#landed-product-body tr.landed-product-row'));
   const products=rows.map(row=>({
-    sku:row.querySelector('[data-field="sku"]').value,
     desc:row.querySelector('[data-field="desc"]').value,
     usdPrice:row.querySelector('[data-field="usd-price"]').value,
     qtyPerCarton:row.querySelector('[data-field="qty-per-carton"]').value,
@@ -1684,7 +1746,6 @@ function loadShipment(id){
   const rows=document.querySelectorAll('#landed-product-body tr.landed-product-row');
   st.products.forEach((p,i)=>{
     const row=rows[i];
-    row.querySelector('[data-field="sku"]').value=p.sku||'';
     row.querySelector('[data-field="desc"]').value=p.desc||'';
     row.querySelector('[data-field="usd-price"]').value=p.usdPrice||'';
     row.querySelector('[data-field="qty-per-carton"]').value=p.qtyPerCarton||'';
@@ -1767,10 +1828,9 @@ function chooseLandedBasis(){
 async function sendLandedToQuote(){
   const rows=document.querySelectorAll('#landed-product-body tr.landed-product-row');
   const validRows=Array.from(rows).filter(row=>{
-    const sku=row.querySelector('[data-field="sku"]').value.trim();
     const desc=row.querySelector('[data-field="desc"]').value.trim();
     const cartons=parseFloat(row.querySelector('[data-field="cartons"]').value)||0;
-    return sku||desc||cartons>0;
+    return desc||cartons>0;
   });
   if(!validRows.length){showToast('Please add at least one landed cost product','error');return;}
 
@@ -1788,7 +1848,7 @@ async function sendLandedToQuote(){
   lineItems=[];
   const costField=basis==='solo'?'aud-landed-cost-per-bag-solo':'aud-landed-cost-per-bag';
   validRows.forEach(row=>{
-    const sku=row.querySelector('[data-field="sku"]').value.trim();
+    const sku=''; // landed items are custom imports with no stock code
     const desc=row.querySelector('[data-field="desc"]').value.trim();
     const landedPerBag=bagOf(row,costField);
     const qtyPerCarton=parseFloat(row.querySelector('[data-field="qty-per-carton"]').value)||0;
@@ -2472,27 +2532,26 @@ function showProductDropdown(inp,itemId,query){
   }
   // FIX B1: position using getBoundingClientRect + scroll offset
   // so dropdown works correctly inside scrolled containers and iframes
+  // Viewport-fixed positioning: escapes the table's overflow clipping entirely and
+  // flips upward when there isn't room below, so results never need scrolling to see.
   const rect=inp.getBoundingClientRect();
-  const scrollTop=window.pageYOffset||document.documentElement.scrollTop;
-  const scrollLeft=window.pageXOffset||document.documentElement.scrollLeft;
   const spaceBelow=window.innerHeight-rect.bottom;
   const spaceAbove=rect.top;
   const ddHeight=Math.min(300,results.length*70);
-  if(spaceBelow>=ddHeight||spaceBelow>=spaceAbove){
-    dd.style.top=(rect.bottom+scrollTop+4)+'px';
+  if(spaceBelow>=ddHeight+4||spaceBelow>=spaceAbove){
+    dd.style.top=Math.min(rect.bottom+4,window.innerHeight-60)+'px';
     dd.style.bottom='auto';
   } else {
     dd.style.bottom='auto';
-    dd.style.top=(rect.top+scrollTop-ddHeight-4)+'px';
+    dd.style.top=Math.max(8,rect.top-ddHeight-4)+'px';
   }
   const ddWidth=Math.min(480,window.innerWidth-24);
-  let left=rect.left+scrollLeft;
-  const maxLeft=scrollLeft+window.innerWidth-ddWidth-12;
-  const minLeft=scrollLeft+12;
+  let left=rect.left;
+  const maxLeft=window.innerWidth-ddWidth-12;
   if(left>maxLeft)left=maxLeft;
-  if(left<minLeft)left=minLeft;
+  if(left<12)left=12;
   dd.style.left=left+'px';
-  dd.style.position='absolute';
+  dd.style.position='fixed';
   dd.innerHTML='';
   results.forEach((p,i)=>{
     const div=document.createElement('div');div.className='pd-item';
@@ -2615,7 +2674,17 @@ function resetLandedOverridesAndRecalc(){
   updateLandedCalculator();
 }
 document.getElementById('landed-ship-mode').addEventListener('change',resetLandedOverridesAndRecalc);
-document.getElementById('landed-origin-port').addEventListener('change',resetLandedOverridesAndRecalc);
+function applyPortDefaultDuty(){
+  const d=portDefaultDuty(document.getElementById('landed-origin-port').value);
+  document.querySelectorAll('#landed-product-body tr.landed-product-row').forEach(row=>{
+    delete row.dataset.dutyManual; // port change resets any per-row override
+    row.querySelector('[data-field="duty-pct"]').value=d>0?d:'';
+  });
+}
+document.getElementById('landed-origin-port').addEventListener('change',function(){
+  applyPortDefaultDuty();
+  resetLandedOverridesAndRecalc();
+});
 document.getElementById('landed-exchange-rate').addEventListener('input',updateLandedCalculator);
 document.getElementById('landed-tt-balance-fee').addEventListener('input',updateLandedCalculator);
 document.getElementById('landed-sideloader-fee').addEventListener('input',updateLandedCalculator);

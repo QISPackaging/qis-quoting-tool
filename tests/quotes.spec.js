@@ -1912,3 +1912,67 @@ test('Reset all is cancelled by declining the confirm, keeping the overrides', a
   await expect(page.locator('#freight-breakdown-body .breakdown-row').first().locator('input')).toHaveValue('555.55');
   await expect(page.locator('#freight-breakdown-body .breakdown-row').first()).toHaveClass(/edited/);
 });
+
+test('landed computed cells carry result styling and primary landed/bag emphasis', async ({ page }) => {
+  await page.goto(appPath);
+  await page.locator('button.tab', { hasText: 'Landed Cost Calculator' }).click();
+
+  const row = page.locator('#landed-product-body tr.landed-product-row').first();
+  // Computed outputs are visually distinct from editable inputs.
+  for (const f of ['total-cbm', 'aud-price-per-carton', 'aud-landed-cost-per-bag', 'aud-landed-cost-per-bag-solo', 'aud-total-landed']) {
+    await expect(row.locator(`input[data-field="${f}"]`)).toHaveClass(/computed/);
+  }
+  // The two landed/bag columns are the primary results.
+  await expect(row.locator('input[data-field="aud-landed-cost-per-bag"]')).toHaveClass(/result-primary/);
+  await expect(row.locator('input[data-field="aud-landed-cost-per-bag-solo"]')).toHaveClass(/result-primary/);
+  // Editable inputs do not get the computed look.
+  await expect(row.locator('input[data-field="usd-price"]')).not.toHaveClass(/computed/);
+
+  // Breakdown total reads as a computed output until manually overridden.
+  const total = page.locator('#landed-total-charge');
+  await expect(total).toHaveClass(/computed/);
+  await total.fill('9999.00');
+  await expect(total).not.toHaveClass(/computed/);
+});
+
+test('landed result columns stay on screen at laptop width without horizontal scrolling', async ({ page }) => {
+  await page.setViewportSize({ width: 1366, height: 900 });
+  await page.goto(appPath);
+  await page.locator('button.tab', { hasText: 'Landed Cost Calculator' }).click();
+  await fillLandedRow(page, 0, { 'desc': 'Wide-layout bag', 'usd-price': '4.50', 'qty-per-carton': '50', 'cbm-per-carton': '0.5', 'cartons': '4' });
+
+  // The whole table fits the wrapper — no horizontal scroll at 1366px.
+  const overflow = await page.locator('.line-wrap').nth(1).evaluate(el => el.scrollWidth - el.clientWidth);
+  expect(overflow).toBeLessThanOrEqual(0);
+
+  // And the money columns sit inside the viewport.
+  const box = await page.locator('#landed-product-body input[data-field="aud-total-landed"]').first().boundingBox();
+  expect(box.x + box.width).toBeLessThanOrEqual(1366);
+});
+
+test('two-column breakdown keeps edit markers, reset controls and editability', async ({ page }) => {
+  await page.goto(appPath);
+  await page.locator('button.tab', { hasText: 'Landed Cost Calculator' }).click();
+  await page.locator('#breakdown-toggle-btn').click();
+
+  // Two-column grid layout.
+  const cols = await page.locator('#freight-breakdown-body').evaluate(el => getComputedStyle(el).gridTemplateColumns.split(' ').length);
+  expect(cols).toBe(2);
+
+  // Rows flow into both columns: at least one row starts in the right half.
+  const bodyBox = await page.locator('#freight-breakdown-body').boundingBox();
+  const xs = [];
+  for (const r of await page.locator('#freight-breakdown-body .breakdown-row').all()) {
+    xs.push((await r.boundingBox()).x);
+  }
+  expect(xs.some(x => x > bodyBox.x + bodyBox.width / 2 - 10)).toBeTruthy();
+
+  // Edit marker + reset still work in the new layout.
+  const firstRow = page.locator('#freight-breakdown-body .breakdown-row').first();
+  const firstInput = firstRow.locator('input');
+  const cardValue = await firstInput.inputValue();
+  await firstInput.fill('888.88');
+  await expect(firstRow).toHaveClass(/edited/);
+  await firstRow.locator('.breakdown-reset-btn').click();
+  await expect(page.locator('#freight-breakdown-body .breakdown-row').first().locator('input')).toHaveValue(cardValue);
+});

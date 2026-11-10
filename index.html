@@ -13,7 +13,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .collapsible-toggle:hover{text-decoration:underline}
 .breakdown-body{display:none;margin-top:0.5rem;padding-top:0.5rem;border-top:1px solid #e8e8e8}
 .breakdown-body.show{display:block}
-.breakdown-row{display:grid;grid-template-columns:1fr 110px;gap:10px;align-items:center;margin-bottom:6px}
+.breakdown-row{display:grid;grid-template-columns:1fr 110px 22px;gap:10px;align-items:center;margin-bottom:6px;border-left:3px solid transparent;padding-left:6px}
+.breakdown-row.edited{border-left:3px solid #e8a33d;background:#fdf6ea}
+.edited-tag{display:inline-block;margin-left:6px;font-size:10px;font-weight:600;color:#9a6b1a;background:#f7e8c8;border-radius:3px;padding:1px 5px;vertical-align:middle}
+.breakdown-reset-btn{border:none;background:none;cursor:pointer;color:#9a6b1a;font-size:15px;padding:0;line-height:1}
+#breakdown-reset-all{border:none;background:none;color:#b3261e;cursor:pointer;font-size:12px;text-decoration:underline;padding:4px 0}
+#breakdown-reset-all-wrap{margin-top:4px}
+.rate-card-status{font-size:11px;color:#888;margin:-4px 0 10px}
+.rate-card-status.expired,#rate-card-status-print.expired{color:#b3261e;font-weight:700}
+.field.total-edited input{border-left:3px solid #e8a33d}
+#fx-default-note{font-size:11px;color:#888;margin-top:3px}
 .breakdown-row span{font-size:12px;color:#555}
 .breakdown-row input{font-size:12px;padding:5px 8px;height:28px;text-align:right}
 .cbm-calc-cell{display:flex;flex-direction:column;gap:6px;align-items:flex-start}
@@ -752,6 +761,7 @@ input[type="range"]{accent-color:var(--accent)}
     <div style="font-size:22px;font-weight:600;color:#1a1a1a">QIS Packaging</div>
     <div style="font-size:13px;color:#666;margin-top:2px">Landed cost calculation</div>
     <div id="landed-print-meta" style="font-size:12px;color:#666;margin-top:6px"></div>
+    <div id="rate-card-status-print" style="font-size:10px;color:#666;margin-top:2px"></div>
   </div>
 
   <!-- Print-only: shipment charges breakdown (populated at print time from live values). -->
@@ -776,6 +786,7 @@ input[type="range"]{accent-color:var(--accent)}
 
   <div class="section" id="landed-config-section">
     <div class="section-title">Shipment details</div>
+    <div id="rate-card-status" class="rate-card-status no-print"></div>
     <div class="row3" style="margin-bottom:12px">
       <div class="field">
         <label for="landed-ship-mode">Ship mode</label>
@@ -803,6 +814,7 @@ input[type="range"]{accent-color:var(--accent)}
       <div class="field">
         <label for="landed-exchange-rate">USD to AUD exchange rate</label>
         <input type="number" id="landed-exchange-rate" min="0.0001" step="0.0001" value="0.6814">
+        <div id="fx-default-note" class="no-print">default set 15 Oct 2026</div>
       </div>
       <div class="field">
         <label for="landed-tt-deposit-fee">Westpac TT deposit fee</label>
@@ -927,6 +939,9 @@ input[type="range"]{accent-color:var(--accent)}
 const GP_RED=30;    // below this: needs approval
 const GP_AMBER=65;  // below this: below target; at or above: on target
 
+// Rate card info: update RATE_CARD_INFO alongside the tables on every new card.
+const RATE_CARD_INFO={label:'15–31 Oct 2026',validFrom:'2026-10-15',validTo:'2026-10-31',source:'Cyclone Global Logistics'};
+const DEFAULT_FX_INFO={rate:0.6814,lastUpdated:'2026-10-15'};
 // Rate card: 15th – 31st Oct 2026 (Cyclone Global Logistics). COSCO is not offered
 // this card; China lanes use the named OOCL rate per QIS ruling (cheaper Tier 2 /
 // ONE alternatives exist at 2450-2550 / 4900-5100).
@@ -1117,12 +1132,69 @@ function getFreightBreakdownItems(mode,port,exchangeRate,totalCbm){
   return items.map(item=>({...item,value:_breakdownOverrides[item.key]!=null?_breakdownOverrides[item.key]:item.value}));
 }
 
+function brisbaneToday(){
+  if(window.__RATE_TEST_TODAY) return window.__RATE_TEST_TODAY;
+  return new Date(Date.now()+10*3600*1000).toISOString().slice(0,10); // Brisbane is UTC+10, no DST
+}
+function renderRateCardStatus(){
+  const expired=brisbaneToday()>RATE_CARD_INFO.validTo;
+  const text='Rates: '+RATE_CARD_INFO.label+' ('+RATE_CARD_INFO.source.split(' ')[0]+')'+(expired?' — EXPIRED, check for new card':'');
+  [document.getElementById('rate-card-status'),document.getElementById('rate-card-status-print')].forEach(el=>{
+    if(!el)return;
+    el.textContent=text;
+    el.classList.toggle('expired',expired);
+  });
+}
+function hasAnyLandedOverride(){
+  return Object.keys(_breakdownOverrides).length>0||_totalManualOverride;
+}
+function makeBreakdownResetBtn(key){
+  const btn=document.createElement('button');
+  btn.type='button';btn.className='breakdown-reset-btn';
+  btn.title='Reset to card rate';btn.textContent='↺';
+  btn.dataset.resetKey=key;
+  btn.addEventListener('click',()=>{
+    delete _breakdownOverrides[key];
+    updateLandedCalculator();
+  });
+  return btn;
+}
+function markBreakdownRowEdited(row){
+  if(row.classList.contains('edited'))return;
+  row.classList.add('edited');
+  const tag=document.createElement('span');tag.className='edited-tag';tag.textContent='edited';
+  row.querySelector('span').appendChild(tag);
+  row.querySelector('.breakdown-reset-cell').appendChild(makeBreakdownResetBtn(row.querySelector('input').dataset.breakdownKey));
+}
+function updateResetAllVisibility(){
+  const w=document.getElementById('breakdown-reset-all-wrap');
+  if(w)w.style.display=hasAnyLandedOverride()?'block':'none';
+}
+function updateTotalOverrideMarker(){
+  const input=document.getElementById('landed-total-charge');
+  const field=input.closest('.field');
+  if(!field)return;
+  field.classList.toggle('total-edited',_totalManualOverride);
+  let tag=document.getElementById('total-edited-tag');
+  if(_totalManualOverride){
+    if(!tag){
+      tag=document.createElement('span');tag.id='total-edited-tag';tag.className='edited-tag';tag.textContent='edited';
+      field.querySelector('label').appendChild(tag);
+    }
+  } else if(tag){tag.remove();}
+  updateResetAllVisibility();
+}
 function renderFreightBreakdown(items){
   const body=document.getElementById('freight-breakdown-body');
   body.innerHTML='';
   items.forEach(item=>{
-    const row=document.createElement('div');row.className='breakdown-row';
+    const edited=_breakdownOverrides[item.key]!=null;
+    const row=document.createElement('div');row.className='breakdown-row'+(edited?' edited':'');
     const label=document.createElement('span');label.textContent=item.label;
+    if(edited){
+      const tag=document.createElement('span');tag.className='edited-tag';tag.textContent='edited';
+      label.appendChild(tag);
+    }
     const wrap=document.createElement('div');wrap.className='input-prefix';
     wrap.innerHTML='<span>$</span>';
     const inp=document.createElement('input');
@@ -1131,11 +1203,28 @@ function renderFreightBreakdown(items){
     inp.addEventListener('input',()=>{
       _breakdownOverrides[item.key]=parseMoney(inp.value);
       recalcTotalFromBreakdown();
+      markBreakdownRowEdited(row);
+      updateResetAllVisibility();
     });
     wrap.appendChild(inp);
-    row.appendChild(label);row.appendChild(wrap);
+    const resetCell=document.createElement('span');resetCell.className='breakdown-reset-cell';
+    if(edited)resetCell.appendChild(makeBreakdownResetBtn(item.key));
+    row.appendChild(label);row.appendChild(wrap);row.appendChild(resetCell);
     body.appendChild(row);
   });
+  const wrap=document.createElement('div');wrap.id='breakdown-reset-all-wrap';
+  const link=document.createElement('button');
+  link.type='button';link.id='breakdown-reset-all';
+  link.textContent='Reset all to card rates';
+  link.addEventListener('click',()=>{
+    if(!confirm('Reset all freight charges to the rate card values? This clears every edited line and any manual total override.'))return;
+    _breakdownOverrides={};
+    _totalManualOverride=false;
+    updateLandedCalculator();
+  });
+  wrap.appendChild(link);
+  body.appendChild(wrap);
+  updateTotalOverrideMarker();
 }
 
 function recalcTotalFromBreakdown(){
@@ -2685,18 +2774,24 @@ document.getElementById('landed-origin-port').addEventListener('change',function
   applyPortDefaultDuty();
   resetLandedOverridesAndRecalc();
 });
-document.getElementById('landed-exchange-rate').addEventListener('input',updateLandedCalculator);
+document.getElementById('landed-exchange-rate').addEventListener('input',function(){
+  const n=document.getElementById('fx-default-note');
+  if(n)n.style.display='none';
+  updateLandedCalculator();
+});
 document.getElementById('landed-tt-balance-fee').addEventListener('input',updateLandedCalculator);
 document.getElementById('landed-sideloader-fee').addEventListener('input',updateLandedCalculator);
 document.getElementById('landed-heavy-lift').addEventListener('change',updateLandedCalculator);
 document.getElementById('landed-demurrage').addEventListener('change',updateLandedCalculator);
 document.getElementById('landed-total-charge').addEventListener('input',function(){
   _totalManualOverride=true;
+  updateTotalOverrideMarker();
   updateLandedProductRows();
 });
 
 addLandedProduct();
 updateLandedCalculator();
+renderRateCardStatus();
 renderShipmentsList();
 
 // Remember last selected rep via localStorage

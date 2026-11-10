@@ -857,7 +857,7 @@ test('landed cost: LCL freight total includes ocean freight and PSS, both overri
   expect(await page.locator('#landed-total-charge').inputValue()).toBe('1141.08');
 
   // Breakdown lines render in the rate-card order.
-  const labels = await page.locator('#freight-breakdown-body .breakdown-row > span').allTextContents();
+  const labels = await page.locator('#freight-breakdown-body .breakdown-row > span:first-child').allTextContents();
   const expectedOrder = [
     'Ocean Freight', 'PSS', 'Port Service Charges', 'Terminal Handling Charge',
     'Port Infrastructure', 'Delivery Order Charge', 'EDI Fee', 'Cargo Reporting',
@@ -1808,4 +1808,107 @@ test('shrinking the SKU column leaves description and other columns unchanged', 
   expect(endSkuWidth).toBeLessThan(startSkuWidth - 40);
   expect(Math.abs(endDescWidth - startDescWidth)).toBeLessThan(1);
   expect(Math.abs(endQtyWidth - startQtyWidth)).toBeLessThan(1);
+});
+
+test('rate card validity line shows muted while valid and red EXPIRED after validTo', async ({ page }) => {
+  // Within the card window (Brisbane date injected): muted, no EXPIRED text.
+  await page.addInitScript(() => { window.__RATE_TEST_TODAY = '2026-10-20'; });
+  await page.goto(appPath);
+  await page.locator('button.tab', { hasText: 'Landed Cost Calculator' }).click();
+  const status = page.locator('#rate-card-status');
+  await expect(status).toHaveText('Rates: 15–31 Oct 2026 (Cyclone)');
+  await expect(status).not.toHaveClass(/expired/);
+});
+
+test('rate card validity line goes red and bold with EXPIRED warning past validTo, on screen and print header', async ({ page }) => {
+  await page.addInitScript(() => { window.__RATE_TEST_TODAY = '2026-11-05'; });
+  await page.goto(appPath);
+  await page.locator('button.tab', { hasText: 'Landed Cost Calculator' }).click();
+  const status = page.locator('#rate-card-status');
+  await expect(status).toHaveText('Rates: 15–31 Oct 2026 (Cyclone) — EXPIRED, check for new card');
+  await expect(status).toHaveClass(/expired/);
+  const color = await status.evaluate(el => getComputedStyle(el).color);
+  expect(color).toBe('rgb(179, 38, 30)');
+  const weight = await status.evaluate(el => getComputedStyle(el).fontWeight);
+  expect(Number(weight)).toBeGreaterThanOrEqual(700);
+  // Print header carries the same line.
+  const printStatus = page.locator('#rate-card-status-print');
+  await expect(printStatus).toHaveText('Rates: 15–31 Oct 2026 (Cyclone) — EXPIRED, check for new card');
+});
+
+test('FX default note shows beside the exchange rate and disappears once the rep edits it', async ({ page }) => {
+  await page.goto(appPath);
+  await page.locator('button.tab', { hasText: 'Landed Cost Calculator' }).click();
+  const note = page.locator('#fx-default-note');
+  await expect(note).toBeVisible();
+  await expect(note).toHaveText('default set 15 Oct 2026');
+  await page.locator('#landed-exchange-rate').fill('0.70');
+  await expect(note).toBeHidden();
+});
+
+test('editing a breakdown line marks it edited with a reset control that restores the card value', async ({ page }) => {
+  await page.goto(appPath);
+  await page.locator('button.tab', { hasText: 'Landed Cost Calculator' }).click();
+  await page.locator('#breakdown-toggle-btn').click();
+
+  const firstRow = page.locator('#freight-breakdown-body .breakdown-row').first();
+  const firstInput = firstRow.locator('input');
+  const cardValue = await firstInput.inputValue();
+  const totalBefore = pm(await page.locator('#landed-total-charge').inputValue());
+
+  // No markers before editing; reset-all hidden.
+  await expect(firstRow).not.toHaveClass(/edited/);
+  await expect(page.locator('#breakdown-reset-all')).toBeHidden();
+
+  await firstInput.fill('999.99');
+  await expect(firstRow).toHaveClass(/edited/);
+  await expect(firstRow.locator('.edited-tag')).toHaveText('edited');
+  await expect(page.locator('#breakdown-reset-all')).toBeVisible();
+
+  // Per-line reset restores the card value and the auto total.
+  await firstRow.locator('.breakdown-reset-btn').click();
+  const restoredRow = page.locator('#freight-breakdown-body .breakdown-row').first();
+  await expect(restoredRow.locator('input')).toHaveValue(cardValue);
+  await expect(restoredRow).not.toHaveClass(/edited/);
+  expect(Math.abs(pm(await page.locator('#landed-total-charge').inputValue()) - totalBefore)).toBeLessThan(0.01);
+  await expect(page.locator('#breakdown-reset-all')).toBeHidden();
+});
+
+test('manual total override shows an edited tag and Reset all clears line overrides and the manual total', async ({ page }) => {
+  await page.goto(appPath);
+  await page.locator('button.tab', { hasText: 'Landed Cost Calculator' }).click();
+  await page.locator('#breakdown-toggle-btn').click();
+
+  const firstInput = page.locator('#freight-breakdown-body .breakdown-row').first().locator('input');
+  const cardValue = await firstInput.inputValue();
+  const autoTotal = pm(await page.locator('#landed-total-charge').inputValue());
+
+  // Edit a line and the total.
+  await firstInput.fill('777.77');
+  await page.locator('#landed-total-charge').fill('12345.00');
+  await expect(page.locator('#total-edited-tag')).toHaveText('edited');
+  await expect(page.locator('#breakdown-reset-all')).toBeVisible();
+
+  // Reset all (confirm accepted) clears everything back to card rates.
+  page.once('dialog', dialog => dialog.accept());
+  await page.locator('#breakdown-reset-all').click();
+
+  await expect(page.locator('#freight-breakdown-body .breakdown-row').first().locator('input')).toHaveValue(cardValue);
+  await expect(page.locator('#freight-breakdown-body .breakdown-row.edited')).toHaveCount(0);
+  await expect(page.locator('#total-edited-tag')).toHaveCount(0);
+  expect(Math.abs(pm(await page.locator('#landed-total-charge').inputValue()) - autoTotal)).toBeLessThan(0.01);
+  await expect(page.locator('#breakdown-reset-all')).toBeHidden();
+});
+
+test('Reset all is cancelled by declining the confirm, keeping the overrides', async ({ page }) => {
+  await page.goto(appPath);
+  await page.locator('button.tab', { hasText: 'Landed Cost Calculator' }).click();
+  await page.locator('#breakdown-toggle-btn').click();
+
+  const firstInput = page.locator('#freight-breakdown-body .breakdown-row').first().locator('input');
+  await firstInput.fill('555.55');
+  page.once('dialog', dialog => dialog.dismiss());
+  await page.locator('#breakdown-reset-all').click();
+  await expect(page.locator('#freight-breakdown-body .breakdown-row').first().locator('input')).toHaveValue('555.55');
+  await expect(page.locator('#freight-breakdown-body .breakdown-row').first()).toHaveClass(/edited/);
 });

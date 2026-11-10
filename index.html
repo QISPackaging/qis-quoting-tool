@@ -12,7 +12,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .collapsible-toggle{background:none;border:none;color:#0C447C;font-size:12px;font-weight:500;cursor:pointer;padding:4px 0;margin-top:6px}
 .collapsible-toggle:hover{text-decoration:underline}
 .breakdown-body{display:none;margin-top:0.5rem;padding-top:0.5rem;border-top:1px solid #e8e8e8}
-.breakdown-body.show{display:block}
+.breakdown-body.show{display:grid;grid-template-columns:1fr 1fr;column-gap:28px;row-gap:0;align-items:start}
+#breakdown-reset-all-wrap{grid-column:1/-1}
 .breakdown-row{display:grid;grid-template-columns:1fr 110px 22px;gap:10px;align-items:center;margin-bottom:6px;border-left:3px solid transparent;padding-left:6px}
 .breakdown-row.edited{border-left:3px solid #e8a33d;background:#fdf6ea}
 .edited-tag{display:inline-block;margin-left:6px;font-size:10px;font-weight:600;color:#9a6b1a;background:#f7e8c8;border-radius:3px;padding:1px 5px;vertical-align:middle}
@@ -130,6 +131,20 @@ input[type="range"]:focus{box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
 .col-resize-handle::after{content:'';display:block;width:2px;height:60%;background:#ccc;border-radius:1px;transition:background 0.1s}
 .col-resize-handle:hover::after,.col-resize-handle.resizing::after{background:#1a1a1a}
 .line-table td{padding:4px 4px;vertical-align:middle}
+/* Landed table: computed results read as outputs, not inputs. */
+#landed-table td{padding:3px 3px}
+#landed-table th{padding:5px 5px;white-space:normal;line-height:1.25;vertical-align:bottom}
+#landed-table input{padding:5px 6px}
+#landed-table input.computed,#landed-total-charge.computed{border-color:transparent;background:#f4f3ef;font-weight:600;color:#1a1a1a}
+#landed-table input.computed{font-size:12.5px;padding:5px 5px}
+#landed-table input.result-primary{background:#F3EADA;font-weight:600;font-size:13.5px}
+/* Result columns (landed/bag, solo, total landed) and the remove button pin to the
+   right edge so the money stays on screen if the middle of the table scrolls. */
+#landed-table th:nth-child(11),#landed-table td:nth-child(11){position:sticky;right:232px;z-index:2;background:#fff}
+#landed-table th:nth-child(12),#landed-table td:nth-child(12){position:sticky;right:137px;z-index:2;background:#fff}
+#landed-table th:nth-child(13),#landed-table td:nth-child(13){position:sticky;right:33px;z-index:2;background:#fff}
+#landed-table th:nth-child(14),#landed-table td:nth-child(14){position:sticky;right:0;z-index:2;background:#fff}
+#landed-table td:nth-child(11){box-shadow:-6px 0 6px -6px rgba(0,0,0,0.15)}
 .line-table input{font-size:13px;padding:5px 8px;height:32px;width:100%;border:1px solid #e0e0e0;border-radius:6px;background:#fff;outline:none;transition:border-color 0.15s,box-shadow 0.15s}
 .line-table input:focus{border-color:#888;box-shadow:0 0 0 3px rgba(26,26,26,0.08)}
 .gp-cell{font-size:12px;font-weight:500;text-align:center;padding:4px 6px!important;white-space:nowrap}
@@ -272,6 +287,7 @@ input[data-field="order-qty"]{-moz-appearance:textfield;appearance:textfield}
   body.print-landed #landed-table th{font-size:9px;padding:3px 4px;white-space:normal;overflow:hidden;color:#111;border-bottom:1px solid #111}
   body.print-landed #landed-table td{padding:3px 4px;overflow:hidden;border-bottom:1px solid #d8d8d8}
   body.print-landed #landed-table tr{break-inside:avoid}
+  body.print-landed #landed-table th,body.print-landed #landed-table td{position:static!important;box-shadow:none!important;background:transparent!important}
   /* The CBM-calc icon column is screen-only; drop it on print to reclaim width. */
   body.print-landed #landed-table th:nth-child(5),body.print-landed #landed-table td:nth-child(5){display:none!important}
   body.print-landed .cbm-toggle,body.print-landed .cbm-lwh-pop{display:none!important}
@@ -860,18 +876,18 @@ input[type="range"]{accent-color:var(--accent)}
       <table class="line-table" id="landed-table">
         <thead>
           <tr>
-            <th style="min-width:170px">Description</th>
-            <th style="width:82px">USD price/bag</th>
-            <th style="width:78px">Qty/carton</th>
-            <th style="width:100px">Order qty</th>
-            <th style="width:46px">CBM calc</th>
-            <th style="width:80px">CBM/carton</th>
-            <th style="width:78px">Cartons</th>
-            <th style="width:84px">Total CBM</th>
-            <th style="width:64px">Duty %</th>
-            <th style="width:92px">AUD price/carton</th>
-            <th style="width:92px">AUD landed/bag</th>
-            <th style="width:96px" title="Assumes this item carries the full container/shipment charges alone">Landed/bag (solo)</th>
+            <th style="min-width:140px">Description</th>
+            <th style="width:76px">USD price/bag</th>
+            <th style="width:68px">Qty/carton</th>
+            <th style="width:88px">Order qty</th>
+            <th style="width:40px">CBM calc</th>
+            <th style="width:72px">CBM/carton</th>
+            <th style="width:62px">Cartons</th>
+            <th style="width:76px">Total CBM</th>
+            <th style="width:54px">Duty %</th>
+            <th style="width:84px">AUD price/carton</th>
+            <th style="width:88px">AUD landed/bag</th>
+            <th style="width:88px" title="Assumes this item carries the full container/shipment charges alone">Landed/bag (solo)</th>
             <th style="width:104px">Total landed (AUD)</th>
             <th style="width:28px" class="no-print"></th>
           </tr>
@@ -1175,6 +1191,7 @@ function updateTotalOverrideMarker(){
   const field=input.closest('.field');
   if(!field)return;
   field.classList.toggle('total-edited',_totalManualOverride);
+  input.classList.toggle('computed',!_totalManualOverride);
   let tag=document.getElementById('total-edited-tag');
   if(_totalManualOverride){
     if(!tag){
@@ -1399,12 +1416,12 @@ function addLandedProduct(){
     </div></td>
     <td><input type="number" data-field="cbm-per-carton" min="0" step="0.01" value=""></td>
     <td><input type="number" data-field="cartons" min="0" step="1" value=""></td>
-    <td><input type="text" data-field="total-cbm" readonly value=""></td>
+    <td><input type="text" class="computed" data-field="total-cbm" readonly value=""></td>
     <td><input type="number" data-field="duty-pct" min="0" step="0.1" placeholder="0" value=""></td>
-    <td><input type="text" data-field="aud-price-per-carton" readonly value=""></td>
-    <td><input type="text" data-field="aud-landed-cost-per-bag" readonly value=""></td>
-    <td><input type="text" data-field="aud-landed-cost-per-bag-solo" readonly value=""></td>
-    <td><input type="text" data-field="aud-total-landed" readonly value=""></td>
+    <td><input type="text" class="computed" data-field="aud-price-per-carton" readonly value=""></td>
+    <td><input type="text" class="computed result-primary" data-field="aud-landed-cost-per-bag" readonly value=""></td>
+    <td><input type="text" class="computed result-primary" data-field="aud-landed-cost-per-bag-solo" readonly value=""></td>
+    <td><input type="text" class="computed" data-field="aud-total-landed" readonly value=""></td>
     <td class="no-print"><button class="remove-btn" aria-label="Remove product">×</button></td>
   `;
   const defDuty=portDefaultDuty(document.getElementById('landed-origin-port').value);
